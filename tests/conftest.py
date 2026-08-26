@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 
@@ -32,9 +33,16 @@ from core.security import hash_password, create_access_token
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 # 테스트 DB 엔진
+#
+# StaticPool이 반드시 필요합니다.
+# SQLite의 :memory: DB는 커넥션마다 완전히 별개의 데이터베이스입니다.
+# 기본 풀을 쓰면 create_all()이 만든 테이블과 TestClient(별도 스레드에서 실행)가
+# 사용하는 커넥션이 서로 다른 DB를 보게 되어 "no such table" 오류가 납니다.
+# StaticPool은 단일 커넥션을 모든 요청에서 재사용하므로 같은 DB를 공유합니다.
 test_engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 
 # 테스트 세션 팩토리

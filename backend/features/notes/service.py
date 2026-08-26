@@ -121,13 +121,6 @@ class NoteService:
         if not note:
             return None
 
-        # 이전 버전 저장
-        latest_version = db.query(func.max(NoteVersion.version_number)).filter(
-            NoteVersion.note_id == note_id
-        ).scalar() or 0
-
-        NoteService.create_version(db, note, latest_version + 1, user.id)
-
         # 정보 업데이트
         if note_data.title:
             note.title = note_data.title
@@ -143,6 +136,17 @@ class NoteService:
         note.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(note)
+
+        # 새 버전 저장
+        # 반드시 필드 수정 이후에 호출해야 합니다.
+        # 생성 시 v1이 "생성 직후 상태"를 담으므로, 각 버전은 그 시점의
+        # 결과 상태를 나타내는 스냅샷입니다. 수정 전에 호출하면 v2가
+        # v1과 동일한 내용이 되어 새 내용이 어디에도 기록되지 않습니다.
+        latest_version = db.query(func.max(NoteVersion.version_number)).filter(
+            NoteVersion.note_id == note_id
+        ).scalar() or 0
+
+        NoteService.create_version(db, note, latest_version + 1, user.id)
 
         return note
 

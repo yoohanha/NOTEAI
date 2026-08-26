@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from core.database import get_db
 from features.auth.models import User
-from features.auth.deps import get_current_user
+from features.auth.deps import get_current_user, get_current_user_optional
 from features.notes.models import Note
 from features.notes.schemas import (
     NoteCreate,
@@ -101,11 +101,15 @@ async def create_note(
 @router.get("/{note_id}", response_model=dict)
 async def get_note(
     note_id: int,
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> dict:
     """
     특정 노트 조회
+
+    공개 노트는 비로그인 사용자도 조회할 수 있습니다.
+    인증 필수 의존성을 쓰면 헤더가 없을 때 403이 나므로
+    get_current_user_optional을 사용합니다.
 
     Args:
         note_id: 노트 ID

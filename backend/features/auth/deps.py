@@ -3,6 +3,8 @@
 - 현재 사용자 조회
 """
 
+from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -11,8 +13,13 @@ from core.security import decode_token
 from features.auth.service import auth_service
 from features.auth.models import User
 
-# HTTP Bearer 토큰 스키마
+# HTTP Bearer 토큰 스키마 (인증 필수)
 security = HTTPBearer()
+
+# 선택적 인증용 스키마
+# auto_error=False로 두면 Authorization 헤더가 없어도 403을 던지지 않고
+# None을 넘겨주므로, 공개 리소스를 비로그인 사용자에게 제공할 수 있습니다.
+optional_security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -72,5 +79,50 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User is inactive",
         )
+
+    return user
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    현재 사용자를 선택적으로 조회 (인증 없어도 통과)
+
+    공개 노트처럼 비로그인 사용자도 접근할 수 있는 리소스에 사용합니다.
+    토큰이 없거나 유효하지 않으면 예외를 던지지 않고 None을 반환하므로,
+    라우트에서 리소스의 공개 여부로 권한을 판단할 수 있습니다.
+
+    FastAPI 라우트에서 사용:
+    async def get_note(current_user: Optional[User] = Depends(get_current_user_optional)):
+        ...
+
+    Args:
+        credentials: HTTP Bearer 토큰 (없을 수 있음)
+        db: 데이터베이스 세션
+
+    Returns:
+        인증에 성공하면 사용자 객체, 아니면 None
+    """
+    # 헤더가 아예 없는 경우 - 비로그인 접근
+    if credentials is None:
+        return None
+
+    payload = decode_token(credentials.credentials)
+
+    if payload is None:
+        return None
+
+    user_id = payload.get("user_id")
+
+    if user_id is None:
+        return None
+
+    user = auth_service.get_user_by_id(db, user_id)
+
+    # 비활성 사용자는 비로그인과 동일하게 취급
+    if user is None or not user.is_active:
+        return None
 
     return user
