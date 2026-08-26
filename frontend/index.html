@@ -9,12 +9,29 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
-  <!-- ============ 로그인 화면 ============ -->
-  <section id="loginView" class="hidden min-h-screen items-center justify-center px-4">
+  <!-- ============ 인증 화면 (로그인 / 회원가입) ============ -->
+  <section id="loginView" class="hidden min-h-screen items-center justify-center px-4 py-8">
     <div class="w-full max-w-sm bg-white rounded-xl shadow-sm border border-slate-200 p-8">
       <h1 class="text-xl font-bold mb-1">NOTEAI 수집 모니터</h1>
-      <p class="text-sm text-slate-500 mb-6">대시보드를 보려면 로그인하세요.</p>
+      <p id="authSubtitle" class="text-sm text-slate-500 mb-5">
+        대시보드를 보려면 로그인하세요.
+      </p>
 
+      <!-- 로그인/회원가입 전환 탭 -->
+      <div class="flex gap-1 p-1 bg-slate-100 rounded-lg mb-5" role="tablist">
+        <button type="button" id="tabLogin" role="tab" aria-selected="true" aria-controls="loginForm"
+                class="flex-1 text-sm font-medium py-1.5 rounded-md transition
+                       bg-white text-slate-900 shadow-sm">
+          로그인
+        </button>
+        <button type="button" id="tabSignup" role="tab" aria-selected="false" aria-controls="signupForm"
+                class="flex-1 text-sm font-medium py-1.5 rounded-md transition
+                       text-slate-500 hover:text-slate-700">
+          회원가입
+        </button>
+      </div>
+
+      <!-- ---- 로그인 폼 ---- -->
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
           <label for="username" class="block text-sm font-medium mb-1">사용자명</label>
@@ -29,13 +46,85 @@
                         focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
 
-        <p id="loginError" class="hidden text-sm text-red-600" role="alert"></p>
+        <p id="loginError" class="hidden text-sm text-red-600 whitespace-pre-line" role="alert"></p>
 
         <button type="submit" id="loginBtn"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300
                        text-white rounded-lg py-2 text-sm font-medium transition">
           로그인
         </button>
+
+        <p class="text-xs text-center text-slate-500">
+          계정이 없으신가요?
+          <button type="button" id="goSignup"
+                  class="text-indigo-600 hover:underline font-medium">회원가입</button>
+        </p>
+      </form>
+
+      <!-- ---- 회원가입 폼 ---- -->
+      <form id="signupForm" class="hidden space-y-4" novalidate>
+        <div>
+          <label for="signupUsername" class="block text-sm font-medium mb-1">
+            사용자명 <span class="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <input id="signupUsername" name="username" type="text" autocomplete="username" required
+                 minlength="3" maxlength="50" placeholder="3자 이상"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="signupEmail" class="block text-sm font-medium mb-1">
+            이메일 <span class="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <input id="signupEmail" name="email" type="email" autocomplete="email" required
+                 placeholder="you@example.com"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="signupFullName" class="block text-sm font-medium mb-1">
+            이름 <span class="text-slate-400 font-normal">(선택)</span>
+          </label>
+          <input id="signupFullName" name="full_name" type="text" autocomplete="name" maxlength="100"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="signupPassword" class="block text-sm font-medium mb-1">
+            비밀번호 <span class="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <input id="signupPassword" name="password" type="password" autocomplete="new-password"
+                 required minlength="8" placeholder="8자 이상"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="signupPasswordConfirm" class="block text-sm font-medium mb-1">
+            비밀번호 확인 <span class="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <input id="signupPasswordConfirm" name="passwordConfirm" type="password"
+                 autocomplete="new-password" required
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <p id="signupError" class="hidden text-sm text-red-600 whitespace-pre-line" role="alert"></p>
+
+        <button type="submit" id="signupBtn"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300
+                       text-white rounded-lg py-2 text-sm font-medium transition">
+          가입하고 시작하기
+        </button>
+
+        <p class="text-xs text-center text-slate-500">
+          이미 계정이 있으신가요?
+          <button type="button" id="goLogin"
+                  class="text-indigo-600 hover:underline font-medium">로그인</button>
+        </p>
       </form>
     </div>
   </section>

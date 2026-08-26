@@ -103,10 +103,48 @@ async function apiFetch(path, options = {}) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(payload.detail || `요청 실패 (HTTP ${response.status})`);
+    throw new Error(extractErrorMessage(payload, response.status));
   }
 
   return payload.data;
+}
+
+/**
+ * 서버 오류 응답에서 사람이 읽을 메시지를 뽑아냅니다.
+ *
+ * FastAPI는 검증 실패(422) 시 detail을 객체 배열로 돌려주므로,
+ * 그대로 표시하면 "[object Object]"가 됩니다. 필드명과 사유를
+ * 한국어로 풀어서 보여줍니다.
+ *
+ * @param {Object} payload - 응답 JSON
+ * @param {number} httpStatus - HTTP 상태 코드
+ * @returns {string} 표시할 오류 메시지
+ */
+function extractErrorMessage(payload, httpStatus) {
+  const detail = payload?.detail;
+
+  // 400 등 단순 문자열 detail
+  if (typeof detail === 'string') return detail;
+
+  // 422 검증 오류 - [{loc: ["body","email"], msg: "..."}]
+  if (Array.isArray(detail) && detail.length > 0) {
+    const fieldLabels = {
+      username: '사용자명',
+      email: '이메일',
+      password: '비밀번호',
+      full_name: '이름',
+    };
+
+    return detail
+      .map((item) => {
+        const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : '';
+        const label = fieldLabels[field] || field;
+        return label ? `${label}: ${item.msg}` : item.msg;
+      })
+      .join('\n');
+  }
+
+  return payload?.message || `요청 실패 (HTTP ${httpStatus})`;
 }
 
 /**
@@ -169,12 +207,45 @@ function showError(message) {
 
 // ============ 화면 전환 ============
 
-/** 로그인 화면을 표시합니다. */
+/** 인증 화면(로그인 탭)을 표시합니다. */
 function showLogin() {
   stopAutoRefresh();
   $('dashboardView').classList.add('hidden');
   $('loginView').classList.remove('hidden');
   $('loginView').classList.add('flex');
+  switchAuthTab('login');
+}
+
+/**
+ * 로그인/회원가입 탭을 전환합니다.
+ * @param {'login'|'signup'} tab - 표시할 탭
+ */
+function switchAuthTab(tab) {
+  const isLogin = tab === 'login';
+
+  // 폼 전환
+  $('loginForm').classList.toggle('hidden', !isLogin);
+  $('signupForm').classList.toggle('hidden', isLogin);
+
+  // 탭 버튼 활성화 스타일
+  const activeClass = 'flex-1 text-sm font-medium py-1.5 rounded-md transition ' +
+                      'bg-white text-slate-900 shadow-sm';
+  const inactiveClass = 'flex-1 text-sm font-medium py-1.5 rounded-md transition ' +
+                        'text-slate-500 hover:text-slate-700';
+
+  $('tabLogin').className = isLogin ? activeClass : inactiveClass;
+  $('tabSignup').className = isLogin ? inactiveClass : activeClass;
+  $('tabLogin').setAttribute('aria-selected', String(isLogin));
+  $('tabSignup').setAttribute('aria-selected', String(!isLogin));
+
+  setText(
+    $('authSubtitle'),
+    isLogin ? '대시보드를 보려면 로그인하세요.' : '계정을 만들면 바로 대시보드로 이동합니다.'
+  );
+
+  // 탭을 옮기면 이전 오류 메시지는 더 이상 유효하지 않음
+  $('loginError').classList.add('hidden');
+  $('signupError').classList.add('hidden');
 }
 
 /** 대시보드를 표시하고 데이터를 불러옵니다. */
@@ -510,6 +581,102 @@ async function handleLogin(event) {
   }
 }
 
+/**
+ * 회원가입 폼 제출을 처리합니다.
+ *
+ * 서버가 가입과 동시에 토큰을 발급하므로, 별도 로그인 없이
+ * 곧바로 대시보드로 이동합니다.
+ *
+ * @param {Event} event - submit 이벤트
+ */
+async function handleSignup(event) {
+  event.preventDefault();
+
+  const username = $('signupUsername').value.trim();
+  const email = $('signupEmail').value.trim();
+  const fullName = $('signupFullName').value.trim();
+  const password = $('signupPassword').value;
+  const passwordConfirm = $('signupPasswordConfirm').value;
+
+  const errorEl = $('signupError');
+  const button = $('signupBtn');
+
+  errorEl.classList.add('hidden');
+
+  // 서버에 보내기 전 클라이언트에서 먼저 검증해 왕복을 줄임
+  // (규칙은 backend/features/auth/schemas.py의 UserCreate와 일치)
+  const validationError = validateSignup({
+    username, email, password, passwordConfirm,
+  });
+
+  if (validationError) {
+    setText(errorEl, validationError);
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  button.disabled = true;
+  setText(button, '가입 중…');
+
+  try {
+    // full_name은 선택 항목이므로 값이 있을 때만 전송
+    const payload = { username, email, password };
+    if (fullName) payload.full_name = fullName;
+
+    const data = await apiFetch('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+
+    // 비밀번호가 DOM에 남지 않도록 폼 초기화
+    $('signupForm').reset();
+    showDashboard();
+  } catch (error) {
+    setText(errorEl, error.message);
+    errorEl.classList.remove('hidden');
+  } finally {
+    button.disabled = false;
+    setText(button, '가입하고 시작하기');
+  }
+}
+
+/**
+ * 회원가입 입력값을 검증합니다.
+ *
+ * @param {Object} values - 입력값
+ * @param {string} values.username - 사용자명
+ * @param {string} values.email - 이메일
+ * @param {string} values.password - 비밀번호
+ * @param {string} values.passwordConfirm - 비밀번호 확인
+ * @returns {string|null} 오류 메시지, 문제가 없으면 null
+ */
+function validateSignup({ username, email, password, passwordConfirm }) {
+  if (!username || !email || !password) {
+    return '필수 항목(*)을 모두 입력하세요.';
+  }
+
+  if (username.length < 3 || username.length > 50) {
+    return '사용자명은 3자 이상 50자 이하여야 합니다.';
+  }
+
+  // 서버의 EmailStr 검증에 걸리기 전에 형태만 간단히 확인
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return '올바른 이메일 주소를 입력하세요.';
+  }
+
+  if (password.length < 8) {
+    return '비밀번호는 8자 이상이어야 합니다.';
+  }
+
+  if (password !== passwordConfirm) {
+    return '비밀번호가 일치하지 않습니다.';
+  }
+
+  return null;
+}
+
 /** 자가 진단을 다시 실행합니다. */
 async function handleDiagnose() {
   const button = $('diagnoseBtn');
@@ -530,8 +697,15 @@ async function handleDiagnose() {
 /** 페이지 초기화 - 토큰이 있으면 바로 대시보드를 엽니다. */
 function init() {
   $('loginForm').addEventListener('submit', handleLogin);
+  $('signupForm').addEventListener('submit', handleSignup);
   $('refreshBtn').addEventListener('click', loadAll);
   $('diagnoseBtn').addEventListener('click', handleDiagnose);
+
+  // 탭 버튼과 폼 하단 링크 모두에서 전환 가능
+  $('tabLogin').addEventListener('click', () => switchAuthTab('login'));
+  $('tabSignup').addEventListener('click', () => switchAuthTab('signup'));
+  $('goSignup').addEventListener('click', () => switchAuthTab('signup'));
+  $('goLogin').addEventListener('click', () => switchAuthTab('login'));
 
   $('logoutBtn').addEventListener('click', () => {
     localStorage.removeItem(TOKEN_KEY);
