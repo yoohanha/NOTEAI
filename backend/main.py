@@ -3,6 +3,15 @@ NOTEAI FastAPI 애플리케이션
 - 핵심 기능: 노트 작성, AI 요약, 협업
 """
 
+import sys
+
+# Windows 한국어 환경의 콘솔은 기본 코덱이 cp949라서, 시작 로그의 이모지를
+# 출력하는 순간 UnicodeEncodeError로 앱 기동 자체가 실패합니다.
+# 표준 출력/에러 스트림을 UTF-8로 재설정해 어떤 로케일에서도 뜨도록 합니다.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
