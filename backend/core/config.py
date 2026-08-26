@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # ============ Trends (기술 트렌드 수집) 설정 ============
     # 외부 피드 요청 타임아웃 (초)
-    TRENDS_TIMEOUT_SECONDS: float = 10.0
+    TRENDS_TIMEOUT_SECONDS: float = 20.0
 
     # 외부 요청 시 사용할 User-Agent
     TRENDS_USER_AGENT: str = "NOTEAI/1.0 (+https://github.com/yoohanha/NOTEAI)"

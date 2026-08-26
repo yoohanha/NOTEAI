@@ -62,7 +62,9 @@ DEFAULT_RSS_SOURCES: List[TrendSource] = [
     TrendSource(
         key="python_insider",
         name="Python Insider",
-        url="https://feeds.feedburner.com/PythonInsider",
+        # feedburner 미러(feeds.feedburner.com/PythonInsider)는 404로 응답하므로
+        # Blogger 원본 피드를 직접 사용
+        url="https://blog.python.org/feeds/posts/default",
         category="language",
     ),
 ]
