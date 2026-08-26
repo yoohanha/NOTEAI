@@ -6,6 +6,7 @@ NOTEAI FastAPI 애플리케이션
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pathlib import Path
 import uvicorn
 
@@ -68,24 +69,34 @@ async def health_check() -> dict:
 
 
 # ============ 에러 처리 ============
+# 주의: 예외 핸들러는 반드시 Response 객체를 반환해야 합니다.
+# dict를 그대로 반환하면 Starlette이 이를 ASGI 앱으로 호출하려다
+# "'dict' object is not callable" 오류가 발생합니다.
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    """HTTP 예외 처리"""
-    return {
-        "status": exc.status_code,
-        "detail": exc.detail,
-        "message": "Error occurred",
-    }
+async def http_exception_handler(request, exc: HTTPException):
+    """HTTP 예외 처리 - 표준 응답 형식으로 변환"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": exc.status_code,
+            "detail": exc.detail,
+            "message": "Error occurred",
+        },
+        headers=getattr(exc, "headers", None),
+    )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
-    """일반 예외 처리"""
-    return {
-        "status": 500,
-        "detail": str(exc),
-        "message": "Internal server error",
-    }
+    """예상하지 못한 예외 처리 - 500 응답"""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "status": 500,
+            "detail": str(exc),
+            "message": "Internal server error",
+        },
+    )
 
 
 # ============ 시작 이벤트 ============

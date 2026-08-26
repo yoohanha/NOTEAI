@@ -10,7 +10,7 @@ alembic==1.13.0
 # 인증 및 보안
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.1.0
+bcrypt==4.0.1  # 4.1.0은 passlib 비호환으로 PyPI에서 yank됨
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
