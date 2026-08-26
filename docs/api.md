@@ -1080,6 +1080,177 @@ GET /notes/search?q=machine+learning&type=full_text&category=Research&page=1&lim
 
 ---
 
+## 7. 지식 그래프 API (Knowledge Graph)
+
+토픽을 입력하면 보유한 지식 자산(내 노트 + 수집된 기술 트렌드)을 분석해
+핵심 요약, 자동 태그 후보, Node/Edge 형태의 지식 그래프를 반환합니다.
+
+분석은 요청 시점에 계산하는 stateless 연산이며, 별도 테이블을 쓰지 않습니다.
+NLP는 외부 모델 없이 표준 라이브러리 기반 TF-IDF로 처리합니다.
+
+### 7.1 토픽 분석
+
+```
+POST /api/graph/analyze
+```
+
+**인증**: 필요 (Bearer)
+
+**요청 본문**
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|------|--------|------|
+| `topic` | string | ✅ | – | 분석할 토픽 (1~100자, 공백만은 불가) |
+| `limit` | int | – | 30 | 그래프에 포함할 최대 문헌 수 (1~50) |
+| `sources` | string[] | – | `["notes","trends"]` | 분석 대상 소스 |
+| `max_keywords` | int | – | 15 | 추출할 최대 키워드 수 (3~30) |
+
+```json
+{
+  "topic": "transformer",
+  "limit": 20,
+  "sources": ["notes", "trends"],
+  "max_keywords": 15
+}
+```
+
+**응답 200**
+
+```json
+{
+  "status": 200,
+  "data": {
+    "topic": "transformer",
+    "summary": "트랜스포머는 attention 메커니즘을 핵심으로 삼는다. ...",
+    "document_count": 12,
+    "keywords": [
+      { "word": "attention", "score": 1.0, "doc_count": 7 }
+    ],
+    "suggested_tags": ["attention", "llm", "nlp"],
+    "documents": [
+      {
+        "id": "trend:34",
+        "ref_id": 34,
+        "type": "trend",
+        "title": "Transformer 아키텍처 심층 분석",
+        "score": 0.83,
+        "snippet": "attention 메커니즘과 positional encoding 을 ...",
+        "url": "https://example.com/transformer-deep",
+        "source_name": "DEV Community",
+        "tags": ["ai", "nlp"],
+        "published_at": "2026-08-25T12:00:00"
+      }
+    ],
+    "graph": {
+      "nodes": [
+        { "id": "topic", "label": "transformer", "type": "topic", "weight": 1.0, "meta": {} },
+        { "id": "trend:34", "label": "Transformer 아키텍처 심층 분석", "type": "trend", "weight": 0.83, "meta": {} },
+        { "id": "kw:attention", "label": "attention", "type": "keyword", "weight": 1.0, "meta": {} }
+      ],
+      "edges": [
+        { "source": "topic", "target": "trend:34", "relation": "relevant", "weight": 0.83 },
+        { "source": "trend:34", "target": "kw:attention", "relation": "tagged", "weight": 0.7 },
+        { "source": "kw:attention", "target": "kw:llm", "relation": "co_occurs", "weight": 0.5 }
+      ]
+    },
+    "analyzed_at": "2026-08-26T15:40:00"
+  },
+  "message": "12건의 문헌에서 15개 키워드를 추출했습니다"
+}
+```
+
+**그래프 스키마**
+
+| Node 필드 | 설명 |
+|-----------|------|
+| `id` | `topic` / `note:{id}` / `trend:{id}` / `kw:{word}` |
+| `type` | `topic` \| `note` \| `trend` \| `keyword` |
+| `weight` | 0~1 정규화 가중치 (노드 크기로 매핑) |
+| `meta` | `url`, `source_name`, `category`, `doc_count`, `matched` 등 |
+
+| Edge 관계 | 의미 |
+|-----------|------|
+| `relevant` | 토픽 ↔ 문헌 (관련도) |
+| `tagged` | 문헌 ↔ 키워드 (문헌이 키워드를 포함) |
+| `co_occurs` | 키워드 ↔ 키워드 (같은 문헌에 함께 등장) |
+
+**참고**: 관련 문헌을 못 찾은 경우도 **200**으로 응답하며 `document_count`가 0입니다.
+(검색 결과 없음은 오류가 아니므로 404를 쓰지 않습니다.)
+
+**에러**
+
+| 상태 | 조건 |
+|------|------|
+| 401 / 403 | 인증 실패 |
+| 422 | 토픽이 공백만이거나 `limit`이 범위를 벗어남 |
+| 500 | 분석 중 예외 |
+
+---
+
+### 7.2 추천 토픽
+
+```
+GET /api/graph/topics?limit=12
+```
+
+**인증**: 필요 (Bearer)
+
+보유 데이터에서 빈도가 높은 단어를 토픽 후보로 제안합니다. (입력창 빠른 선택용)
+
+```json
+{
+  "status": 200,
+  "data": {
+    "topics": [
+      { "topic": "llm", "doc_count": 14 },
+      { "topic": "python", "doc_count": 10 }
+    ],
+    "total": 2
+  },
+  "message": "2개 추천 토픽"
+}
+```
+
+---
+
+### 7.3 자동 태깅 적용
+
+```
+POST /api/graph/apply-tags
+```
+
+**인증**: 필요 (Bearer)
+
+분석에서 제안된 태그를 노트에 **병합**합니다. 기존 태그는 유지되며 새 태그만 추가됩니다.
+**본인 소유 노트만** 수정되고, 그 외는 `skipped_note_ids`로 보고됩니다.
+
+**요청 본문**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `note_ids` | int[] | ✅ | 대상 노트 ID (1~50개) |
+| `tags` | string[] | ✅ | 추가할 태그 (1~20개, 소문자로 정규화) |
+
+```json
+{ "note_ids": [3, 7], "tags": ["attention", "llm"] }
+```
+
+**응답 200**
+
+```json
+{
+  "status": 200,
+  "data": {
+    "updated_note_ids": [3],
+    "skipped_note_ids": [7],
+    "applied_tags": ["attention", "llm"]
+  },
+  "message": "1개 노트에 태그를 적용했습니다 (1개는 접근 권한이 없어 건너뜀)"
+}
+```
+
+---
+
 ## 에러 처리
 
 ### 공통 에러 코드

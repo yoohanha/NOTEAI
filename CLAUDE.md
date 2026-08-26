@@ -102,11 +102,17 @@ noteai/
 │   │   │   ├── routes.py
 │   │   │   └── service.py
 │   │   │
-│   │   └── ai/
+│   │   ├── ai/
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   ├── service.py
+│   │   │   └── nlp_utils.py
+│   │   │
+│   │   └── graph/               # 토픽 지식 그래프 분석
+│   │       ├── analyzer.py      # 순수 파이썬 NLP (TF-IDF/요약/공출현)
 │   │       ├── schemas.py
-│   │       ├── routes.py
-│   │       ├── service.py
-│   │       └── nlp_utils.py
+│   │       ├── routes.py        # /api/graph/*
+│   │       └── service.py
 │   │
 │   ├── utils/                   # 공유 유틸
 │   │   ├── helpers.py
@@ -116,8 +122,10 @@ noteai/
 │   └── uploads/                 # 파일 저장소
 │
 ├── frontend/
-│   ├── index.html
-│   ├── script.js
+│   ├── index.html               # 탭 3종(모니터/큐레이션/지식 그래프)
+│   ├── script.js                # 공용 유틸 + 인증 + 탭 라우팅 + 모니터 화면
+│   ├── curation.js              # 📚 노트 큐레이션 화면
+│   ├── graph.js                 # 🕸️ 지식 그래프 화면 (Cytoscape.js)
 │   ├── style.css
 │   ├── pages/
 │   ├── components/
@@ -191,6 +199,13 @@ POST   /api/notes/{note_id}/summarize        자동 요약
 POST   /api/notes/{note_id}/extract-keywords 키워드 추출
 POST   /api/notes/{note_id}/classify         자동 분류
 POST   /api/notes/semantic-search            시맨틱 검색
+```
+
+### 지식 그래프 (Knowledge Graph)
+```
+POST   /api/graph/analyze          토픽 분석 (요약 + 자동 태깅 + Node/Edge 그래프)
+GET    /api/graph/topics           추천 토픽 목록
+POST   /api/graph/apply-tags       제안 태그를 내 노트에 병합 적용
 ```
 
 ### 댓글 (Comments)

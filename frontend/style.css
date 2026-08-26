@@ -1,4 +1,27 @@
-/* NOTEAI 수집 모니터 - Tailwind로 표현하기 어려운 부분만 보강 */
+/* NOTEAI 대시보드 - Tailwind로 표현하기 어려운 부분만 보강 */
+
+/* ============ 지식 그래프 캔버스 ============ */
+
+/*
+  Cytoscape는 컨테이너의 실제 픽셀 높이를 기준으로 캔버스를 만듭니다.
+  높이가 0이면 아무것도 그려지지 않으므로 여기서 명시적으로 지정합니다.
+  뷰포트 높이에 연동해 큰 화면에서는 더 넓게 보이도록 했습니다.
+*/
+.graph-canvas {
+  width: 100%;
+  height: clamp(360px, 60vh, 640px);
+  background-color: rgb(248 250 252);   /* slate-50 */
+  background-image:
+    radial-gradient(rgb(226 232 240) 1px, transparent 1px);
+  background-size: 18px 18px;           /* 옅은 격자 - 팬/줌 방향을 인지하기 쉬움 */
+  touch-action: none;                   /* 모바일에서 그래프 드래그가 페이지 스크롤로 새지 않게 */
+}
+
+/* 그래프 안에서 텍스트가 드래그로 선택되면 팬 조작이 끊겨 보임 */
+.graph-canvas canvas {
+  user-select: none;
+}
+
 
 /* 숫자 열의 자릿수가 흔들리지 않도록 고정폭 숫자 사용 */
 .tabular-nums {

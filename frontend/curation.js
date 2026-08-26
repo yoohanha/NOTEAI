@@ -1,0 +1,433 @@
+/**
+ * 📚 노트 큐레이션 화면
+ *
+ * 수집된 기술 트렌드를 검색·필터링하고, 마음에 드는 항목을 내 노트로 담습니다.
+ * 하단에는 지금까지 담은 내 노트 목록을 함께 보여 줍니다.
+ *
+ * 사용 API
+ * - GET  /api/trends/sources : 소스 목록 (필터 select 채우기)
+ * - GET  /api/trends         : 트렌드 목록 (검색/소스/기간 필터, 페이지네이션)
+ * - POST /api/trends/refresh : 지금 수집 실행
+ * - POST /api/trends/save    : 트렌드를 노트로 저장
+ * - GET  /api/notes          : 내 노트 목록
+ *
+ * script.js에 정의된 공용 유틸($, apiFetch, setText, formatTime, showError)을 사용합니다.
+ */
+
+// ============ 상수 ============
+
+const CURATION_PAGE_SIZE = 12;   // 트렌드 카드 한 번에 불러오는 개수
+const NOTES_PAGE_SIZE = 20;      // 내 노트 목록 표시 개수
+
+// ============ 상태 ============
+
+// 현재 적용 중인 필터와 페이지 - "더 보기"가 같은 조건으로 이어지게 유지합니다.
+let curationPage = 1;
+let curationFilters = { search: '', source: '', days: '' };
+let curationTotal = 0;
+let sourcesLoaded = false;
+
+// ============ 유틸 ============
+
+/**
+ * 값이 있는 항목만 남겨 쿼리스트링을 만듭니다.
+ * @param {Object} params - 키/값 객체
+ * @returns {string} "a=1&b=2" 형태의 문자열
+ */
+function buildQuery(params) {
+  const query = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== '' && value !== null && value !== undefined) {
+      query.set(key, value);
+    }
+  });
+
+  return query.toString();
+}
+
+/**
+ * 태그 배열을 작은 칩 엘리먼트로 만들어 붙입니다.
+ * @param {HTMLElement} container - 칩을 담을 부모
+ * @param {string[]} tags - 태그 목록
+ * @param {number} max - 최대 표시 개수
+ */
+function appendTagChips(container, tags, max = 4) {
+  (tags || []).slice(0, max).forEach((tag) => {
+    const chip = document.createElement('span');
+    chip.className = 'text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full';
+    chip.textContent = `#${tag}`;
+    container.appendChild(chip);
+  });
+}
+
+/**
+ * 비어 있는 목록에 안내 문구를 표시합니다.
+ * @param {HTMLElement} container - 대상 컨테이너
+ * @param {string} message - 표시할 문구
+ */
+function renderEmptyState(container, message) {
+  container.replaceChildren();
+
+  const empty = document.createElement('p');
+  empty.className = 'text-sm text-slate-400 py-8 text-center col-span-full';
+  empty.textContent = message;
+
+  container.appendChild(empty);
+}
+
+// ============ 렌더링 ============
+
+/**
+ * 트렌드 항목 하나를 카드 엘리먼트로 만듭니다.
+ *
+ * 사용자 데이터가 들어가는 자리는 모두 textContent로 넣어 XSS를 막습니다.
+ *
+ * @param {Object} item - 트렌드 항목
+ * @returns {HTMLElement} 카드 엘리먼트
+ */
+function createTrendCard(item) {
+  const card = document.createElement('article');
+  card.className =
+    'border border-slate-200 rounded-xl p-4 flex flex-col gap-2 hover:border-indigo-300 transition';
+
+  // ---- 출처 / 발행일 ----
+  const metaRow = document.createElement('div');
+  metaRow.className = 'flex items-center gap-2 text-[11px] text-slate-400';
+
+  const source = document.createElement('span');
+  source.className = 'font-medium text-slate-500';
+  source.textContent = item.source_name || item.source_key || '알 수 없는 소스';
+  metaRow.appendChild(source);
+
+  if (item.category) {
+    const category = document.createElement('span');
+    category.className = 'bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded';
+    category.textContent = item.category;
+    metaRow.appendChild(category);
+  }
+
+  const published = document.createElement('span');
+  published.className = 'ml-auto';
+  published.textContent = formatTime(item.published_at || item.fetched_at);
+  metaRow.appendChild(published);
+
+  card.appendChild(metaRow);
+
+  // ---- 제목 ----
+  const title = document.createElement('h3');
+  title.className = 'text-sm font-semibold leading-snug';
+  title.textContent = item.title || '(제목 없음)';
+  card.appendChild(title);
+
+  // ---- 요약 ----
+  if (item.summary) {
+    const summary = document.createElement('p');
+    summary.className = 'text-xs text-slate-500 leading-relaxed line-clamp-3';
+    summary.textContent = item.summary;
+    card.appendChild(summary);
+  }
+
+  // ---- 태그 ----
+  if (item.tags && item.tags.length) {
+    const tagRow = document.createElement('div');
+    tagRow.className = 'flex flex-wrap gap-1.5';
+    appendTagChips(tagRow, item.tags);
+    card.appendChild(tagRow);
+  }
+
+  // ---- 액션 ----
+  const actions = document.createElement('div');
+  actions.className = 'flex items-center gap-2 mt-auto pt-2';
+
+  const openLink = document.createElement('a');
+  openLink.href = item.url;
+  openLink.target = '_blank';
+  openLink.rel = 'noopener noreferrer';   // 원문 탭이 이 페이지를 조작하지 못하게 차단
+  openLink.className = 'text-xs text-indigo-600 hover:underline';
+  openLink.textContent = '🔗 원문 열기';
+  actions.appendChild(openLink);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className =
+    'ml-auto text-xs bg-slate-100 hover:bg-slate-200 disabled:bg-emerald-100 ' +
+    'disabled:text-emerald-700 px-3 py-1.5 rounded-lg transition';
+
+  if (item.is_saved) {
+    saveBtn.textContent = '✅ 저장됨';
+    saveBtn.disabled = true;
+  } else {
+    saveBtn.textContent = '📌 노트로 저장';
+    saveBtn.addEventListener('click', () => handleSaveTrend(item, saveBtn));
+  }
+
+  actions.appendChild(saveBtn);
+  card.appendChild(actions);
+
+  return card;
+}
+
+/**
+ * 트렌드 카드 목록을 그립니다.
+ * @param {Object[]} items - 트렌드 항목 배열
+ * @param {boolean} append - true면 기존 목록 뒤에 덧붙임 ("더 보기")
+ */
+function renderCurationTrends(items, append = false) {
+  const container = $('curationTrends');
+
+  if (!append) container.replaceChildren();
+
+  if (!items.length && !append) {
+    renderEmptyState(container, '조건에 맞는 트렌드가 없습니다. 🛰️ 지금 수집을 눌러 보세요.');
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  items.forEach((item) => fragment.appendChild(createTrendCard(item)));
+  container.appendChild(fragment);
+}
+
+/**
+ * 내 노트 목록을 그립니다.
+ * @param {Object[]} notes - 노트 배열
+ */
+function renderNotes(notes) {
+  const list = $('notesList');
+  list.replaceChildren();
+
+  if (!notes.length) {
+    const empty = document.createElement('li');
+    empty.className = 'text-sm text-slate-400 py-8 text-center';
+    empty.textContent = '아직 담은 노트가 없습니다. 위 트렌드에서 📌 버튼을 눌러 보세요.';
+    list.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  notes.forEach((note) => {
+    const row = document.createElement('li');
+    row.className = 'px-4 py-3';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-start gap-3';
+
+    const title = document.createElement('p');
+    title.className = 'text-sm font-medium';
+    title.textContent = note.title || '(제목 없음)';
+    header.appendChild(title);
+
+    const date = document.createElement('span');
+    date.className = 'ml-auto text-[11px] text-slate-400 whitespace-nowrap';
+    date.textContent = formatTime(note.updated_at || note.created_at);
+    header.appendChild(date);
+
+    row.appendChild(header);
+
+    // 본문 미리보기 - 마크다운 기호는 그대로 두되 길이만 자릅니다.
+    if (note.content) {
+      const preview = document.createElement('p');
+      preview.className = 'text-xs text-slate-500 mt-1 line-clamp-2';
+      preview.textContent = note.content.slice(0, 200);
+      row.appendChild(preview);
+    }
+
+    if ((note.tags && note.tags.length) || note.category) {
+      const tagRow = document.createElement('div');
+      tagRow.className = 'flex flex-wrap gap-1.5 mt-2';
+
+      if (note.category) {
+        const category = document.createElement('span');
+        category.className = 'text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full';
+        category.textContent = note.category;
+        tagRow.appendChild(category);
+      }
+
+      appendTagChips(tagRow, note.tags, 6);
+      row.appendChild(tagRow);
+    }
+
+    fragment.appendChild(row);
+  });
+
+  list.appendChild(fragment);
+}
+
+/**
+ * 소스 필터 select를 채웁니다. (최초 1회만 호출)
+ * @param {Object[]} sources - 소스 목록
+ */
+function renderSourceOptions(sources) {
+  const select = $('curationSource');
+
+  sources.forEach((source) => {
+    const option = document.createElement('option');
+    option.value = source.key;
+    option.textContent = source.name || source.key;
+    select.appendChild(option);
+  });
+}
+
+// ============ 데이터 로딩 ============
+
+/**
+ * 큐레이션 화면 전체를 불러옵니다.
+ * 트렌드/노트/소스 요청은 서로 독립적이므로 병렬로 보냅니다.
+ */
+async function loadCuration() {
+  curationPage = 1;
+
+  const requests = [loadCurationTrends(false), loadNotes()];
+
+  // 소스 목록은 바뀌지 않으므로 최초 1회만 요청합니다.
+  if (!sourcesLoaded) requests.push(loadSources());
+
+  await Promise.allSettled(requests);
+
+  setText($('lastUpdated'), `업데이트 ${new Date().toLocaleTimeString('ko-KR')}`);
+}
+
+/**
+ * 현재 필터 조건으로 트렌드 목록을 불러옵니다.
+ * @param {boolean} append - true면 다음 페이지를 이어 붙임
+ */
+async function loadCurationTrends(append = false) {
+  const query = buildQuery({
+    page: curationPage,
+    limit: CURATION_PAGE_SIZE,
+    search: curationFilters.search,
+    source: curationFilters.source,
+    days: curationFilters.days,
+  });
+
+  try {
+    const data = await apiFetch(`/api/trends?${query}`);
+
+    curationTotal = data.total;
+
+    renderCurationTrends(data.items, append);
+
+    setText($('curationCount'), `${data.total}건 중 ${curationPage * CURATION_PAGE_SIZE >= data.total
+      ? data.total
+      : curationPage * CURATION_PAGE_SIZE}건 표시`);
+
+    // 아직 남은 항목이 있을 때만 "더 보기" 노출
+    const hasMore = curationPage * CURATION_PAGE_SIZE < data.total;
+    $('curationMoreBtn').classList.toggle('hidden', !hasMore);
+  } catch (error) {
+    showError(`트렌드 조회 실패: ${error.message}`);
+  }
+}
+
+/** 내 노트 목록을 불러옵니다. */
+async function loadNotes() {
+  try {
+    const data = await apiFetch(`/api/notes?page=1&limit=${NOTES_PAGE_SIZE}`);
+
+    renderNotes(data.notes);
+    setText($('notesCount'), `${data.pagination.total}건`);
+  } catch (error) {
+    showError(`노트 조회 실패: ${error.message}`);
+  }
+}
+
+/** 소스 목록을 불러와 필터 select를 채웁니다. */
+async function loadSources() {
+  try {
+    const data = await apiFetch('/api/trends/sources');
+
+    renderSourceOptions(data.sources);
+    sourcesLoaded = true;
+  } catch (error) {
+    // 필터가 비어 있어도 화면은 동작하므로 배너까지 띄우지 않습니다.
+    console.error('소스 목록 조회 실패:', error);
+  }
+}
+
+// ============ 이벤트 핸들러 ============
+
+/**
+ * 필터 폼 제출 - 첫 페이지부터 다시 조회합니다.
+ * @param {Event} event - submit 이벤트
+ */
+function handleCurationFilter(event) {
+  event.preventDefault();
+
+  curationFilters = {
+    search: $('curationSearch').value.trim(),
+    source: $('curationSource').value,
+    days: $('curationDays').value,
+  };
+  curationPage = 1;
+
+  showError(null);
+  loadCurationTrends(false);
+}
+
+/** "더 보기" - 다음 페이지를 이어서 불러옵니다. */
+function handleCurationMore() {
+  curationPage += 1;
+  loadCurationTrends(true);
+}
+
+/**
+ * 트렌드를 노트로 저장합니다.
+ * @param {Object} item - 트렌드 항목
+ * @param {HTMLButtonElement} button - 클릭된 버튼 (진행 상태 표시용)
+ */
+async function handleSaveTrend(item, button) {
+  button.disabled = true;
+  button.textContent = '저장 중…';
+
+  try {
+    await apiFetch('/api/trends/save', {
+      method: 'POST',
+      body: JSON.stringify({ trend_id: item.id }),
+    });
+
+    button.textContent = '✅ 저장됨';
+
+    // 새로 담은 노트가 바로 보이도록 목록만 갱신
+    loadNotes();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = '📌 노트로 저장';
+    showError(`노트 저장 실패: ${error.message}`);
+  }
+}
+
+/** "지금 수집" - 외부 소스에서 최신 트렌드를 즉시 수집합니다. */
+async function handleCollectNow() {
+  const button = $('collectBtn');
+
+  button.disabled = true;
+  button.textContent = '수집 중…';
+  showError(null);
+
+  try {
+    const data = await apiFetch('/api/trends/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ limit_per_source: 20 }),
+    });
+
+    setText($('curationCount'), `방금 ${data.saved}건 신규 저장 (${data.duplicates}건 중복)`);
+
+    curationPage = 1;
+    await loadCurationTrends(false);
+  } catch (error) {
+    showError(`수집 실패: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = '🛰️ 지금 수집';
+  }
+}
+
+// ============ 초기화 ============
+
+/** 큐레이션 화면의 이벤트를 바인딩합니다. (script.js의 init에서 호출) */
+function initCuration() {
+  $('curationFilterForm').addEventListener('submit', handleCurationFilter);
+  $('curationMoreBtn').addEventListener('click', handleCurationMore);
+  $('collectBtn').addEventListener('click', handleCollectNow);
+}

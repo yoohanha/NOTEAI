@@ -1,7 +1,16 @@
 /**
- * NOTEAI 수집 모니터 대시보드
+ * NOTEAI 대시보드 - 공용 유틸 및 수집 모니터 화면
  *
- * 백그라운드 워커가 갱신한 수집 상태를 주기적으로 조회해 화면을 최신으로 유지합니다.
+ * 이 파일이 담당하는 것
+ * - 인증(로그인/회원가입) 및 세션 처리
+ * - 공용 유틸: apiFetch / $ / setText / formatTime / showError
+ * - 상단 탭 라우팅 (📡 수집 모니터 · 📚 노트 큐레이션 · 🕸️ 토픽 지식 그래프)
+ * - 📡 수집 모니터 화면 렌더링
+ *
+ * 큐레이션·그래프 화면 로직은 각각 curation.js / graph.js에 있으며,
+ * 여기서 정의한 공용 유틸을 그대로 사용합니다.
+ *
+ * 사용 API
  * - /api/monitor/status : 워커 상태 + 통계 + 자가 진단 + 실행 이력 (1회 요청으로 통합 조회)
  * - /api/trends         : 최근 수집 항목
  */
@@ -48,9 +57,27 @@ const RUN_STATUS_LABELS = {
   failed: '실패',
 };
 
+// 상단 탭 스타일 (활성/비활성)
+const NAV_ACTIVE_CLASS =
+  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition ' +
+  'border-indigo-600 text-indigo-700';
+const NAV_INACTIVE_CLASS =
+  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition ' +
+  'border-transparent text-slate-500 hover:text-slate-800';
+
+// 탭 id -> {버튼, 패널} 매핑
+const VIEWS = {
+  monitor: { tab: 'navMonitor', panel: 'panelMonitor' },
+  curation: { tab: 'navCuration', panel: 'panelCuration' },
+  graph: { tab: 'navGraph', panel: 'panelGraph' },
+};
+
 // ============ 상태 ============
 
 let refreshTimer = null;
+
+// 현재 열려 있는 탭 - 자동 새로고침 대상 판단에 사용
+let activeView = 'monitor';
 
 // ============ 유틸 ============
 
@@ -254,9 +281,59 @@ function showDashboard() {
   $('loginView').classList.remove('flex');
   $('dashboardView').classList.remove('hidden');
 
-  loadAll();
+  // 모니터 탭을 기본 화면으로 열면서 데이터 로딩까지 함께 처리
+  switchView('monitor');
+}
 
-  if ($('autoRefresh').checked) startAutoRefresh();
+/**
+ * 상단 탭을 전환하고 해당 화면의 데이터를 불러옵니다.
+ *
+ * 자동 새로고침은 실시간성이 필요한 모니터 탭에서만 동작시켜
+ * 다른 탭을 보는 동안 불필요한 폴링이 쌓이지 않게 합니다.
+ *
+ * @param {'monitor'|'curation'|'graph'} view - 표시할 화면
+ */
+function switchView(view) {
+  if (!VIEWS[view]) return;
+
+  activeView = view;
+
+  // 탭 버튼과 패널의 표시 상태를 한 번에 갱신
+  Object.entries(VIEWS).forEach(([name, ids]) => {
+    const isActive = name === view;
+
+    $(ids.tab).className = isActive ? NAV_ACTIVE_CLASS : NAV_INACTIVE_CLASS;
+    $(ids.tab).setAttribute('aria-selected', String(isActive));
+    $(ids.panel).classList.toggle('hidden', !isActive);
+  });
+
+  // 탭을 옮기면 이전 화면의 오류 메시지는 더 이상 유효하지 않음
+  showError(null);
+
+  // 자동 새로고침 체크박스는 모니터 탭에서만 의미가 있음
+  $('autoRefreshLabel').classList.toggle('hidden', view !== 'monitor');
+
+  if (view === 'monitor') {
+    loadAll();
+    if ($('autoRefresh').checked) startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+    refreshActiveView();
+  }
+}
+
+/**
+ * 현재 열려 있는 탭의 데이터를 다시 불러옵니다.
+ * 새로고침 버튼이 탭마다 다르게 동작하도록 하는 진입점입니다.
+ */
+function refreshActiveView() {
+  if (activeView === 'monitor') {
+    loadAll();
+  } else if (activeView === 'curation') {
+    loadCuration();
+  } else if (activeView === 'graph') {
+    loadTopicSuggestions();
+  }
 }
 
 // ============ 렌더링 ============
@@ -698,8 +775,13 @@ async function handleDiagnose() {
 function init() {
   $('loginForm').addEventListener('submit', handleLogin);
   $('signupForm').addEventListener('submit', handleSignup);
-  $('refreshBtn').addEventListener('click', loadAll);
+  $('refreshBtn').addEventListener('click', refreshActiveView);
   $('diagnoseBtn').addEventListener('click', handleDiagnose);
+
+  // 상단 화면 전환 탭 - data-view 속성으로 대상 화면을 지정
+  document.querySelectorAll('.nav-tab').forEach((button) => {
+    button.addEventListener('click', () => switchView(button.dataset.view));
+  });
 
   // 탭 버튼과 폼 하단 링크 모두에서 전환 가능
   $('tabLogin').addEventListener('click', () => switchAuthTab('login'));
@@ -713,19 +795,26 @@ function init() {
   });
 
   $('autoRefresh').addEventListener('change', (event) => {
-    if (event.target.checked) startAutoRefresh();
+    // 모니터 탭에서만 폴링을 켭니다.
+    if (event.target.checked && activeView === 'monitor') startAutoRefresh();
     else stopAutoRefresh();
   });
 
-  // 탭이 백그라운드일 때는 폴링을 멈춰 불필요한 요청을 줄임
+  // 브라우저 탭이 백그라운드일 때는 폴링을 멈춰 불필요한 요청을 줄임
   document.addEventListener('visibilitychange', () => {
+    const dashboardOpen = !$('dashboardView').classList.contains('hidden');
+
     if (document.hidden) {
       stopAutoRefresh();
-    } else if ($('autoRefresh').checked && !$('dashboardView').classList.contains('hidden')) {
+    } else if (dashboardOpen && activeView === 'monitor' && $('autoRefresh').checked) {
       loadAll();
       startAutoRefresh();
     }
   });
+
+  // 화면별 모듈 초기화 (curation.js / graph.js에서 정의)
+  initCuration();
+  initGraph();
 
   if (getToken()) showDashboard();
   else showLogin();

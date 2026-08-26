@@ -3,16 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NOTEAI 수집 모니터</title>
+  <title>NOTEAI 대시보드</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!--
+    지식 그래프 렌더링 라이브러리 (Cytoscape.js)
+    - defer로 불러와 초기 페인트를 막지 않습니다.
+    - onerror는 CDN 차단/오프라인 상황을 감지해 텍스트 폴백으로 전환합니다.
+  -->
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"
+          onerror="window.__cytoscapeFailed = true;"></script>
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
-  <!-- ============ 인증 화면 (로그인 / 회원가입) ============ -->
+  <!-- ============================================================
+       인증 화면 (로그인 / 회원가입)
+       ============================================================ -->
   <section id="loginView" class="hidden min-h-screen items-center justify-center px-4 py-8">
     <div class="w-full max-w-sm bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-      <h1 class="text-xl font-bold mb-1">NOTEAI 수집 모니터</h1>
+      <h1 class="text-xl font-bold mb-1">🧠 NOTEAI</h1>
       <p id="authSubtitle" class="text-sm text-slate-500 mb-5">
         대시보드를 보려면 로그인하세요.
       </p>
@@ -129,12 +141,15 @@
     </div>
   </section>
 
-  <!-- ============ 대시보드 ============ -->
+  <!-- ============================================================
+       대시보드
+       ============================================================ -->
   <section id="dashboardView" class="hidden">
 
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
-        <h1 class="text-lg font-bold">NOTEAI 수집 모니터</h1>
+      <!-- ---- 상단 줄: 타이틀 + 전역 컨트롤 ---- -->
+      <div class="max-w-7xl mx-auto px-4 pt-3 flex flex-wrap items-center gap-3">
+        <h1 class="text-lg font-bold">🧠 NOTEAI</h1>
 
         <!-- 워커 상태 배지 -->
         <span id="workerBadge"
@@ -147,7 +162,8 @@
         <div class="ml-auto flex items-center gap-3">
           <span id="lastUpdated" class="text-xs text-slate-400" aria-live="polite"></span>
 
-          <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+          <label id="autoRefreshLabel"
+                 class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
             <input type="checkbox" id="autoRefresh" checked
                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
             자동 새로고침
@@ -155,7 +171,7 @@
 
           <button id="refreshBtn"
                   class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition">
-            새로고침
+            🔄 새로고침
           </button>
           <button id="logoutBtn"
                   class="text-xs text-slate-500 hover:text-slate-800 px-2 py-1.5 transition">
@@ -163,95 +179,382 @@
           </button>
         </div>
       </div>
-    </header>
 
-    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-
-      <!-- 전역 오류 배너 -->
-      <div id="errorBanner" class="hidden rounded-lg bg-red-50 border border-red-200 px-4 py-3
-                                   text-sm text-red-700" role="alert"></div>
-
-      <!-- ---- 지표 카드 ---- -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <article class="bg-white rounded-xl border border-slate-200 p-4">
-          <p class="text-xs text-slate-500 mb-1">24시간 성공률</p>
-          <p id="mSuccessRate" class="text-2xl font-bold tabular-nums">–</p>
-          <p id="mRunCount" class="text-xs text-slate-400 mt-1">–</p>
-        </article>
-
-        <article class="bg-white rounded-xl border border-slate-200 p-4">
-          <p class="text-xs text-slate-500 mb-1">신규 저장</p>
-          <p id="mSaved" class="text-2xl font-bold tabular-nums">–</p>
-          <p id="mFetched" class="text-xs text-slate-400 mt-1">–</p>
-        </article>
-
-        <article class="bg-white rounded-xl border border-slate-200 p-4">
-          <p class="text-xs text-slate-500 mb-1">누적 트렌드</p>
-          <p id="mTotal" class="text-2xl font-bold tabular-nums">–</p>
-          <p id="mAvgDuration" class="text-xs text-slate-400 mt-1">–</p>
-        </article>
-
-        <article class="bg-white rounded-xl border border-slate-200 p-4">
-          <p class="text-xs text-slate-500 mb-1">다음 수집</p>
-          <p id="mNextRun" class="text-2xl font-bold tabular-nums">–</p>
-          <p id="mLastRun" class="text-xs text-slate-400 mt-1">–</p>
-        </article>
-      </div>
-
-      <!-- ---- 자가 진단 ---- -->
-      <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
-          <h2 class="font-semibold text-sm">자가 진단</h2>
-          <span id="verdictBadge"
-                class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">–</span>
-          <button id="diagnoseBtn"
-                  class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition">
-            다시 진단
+      <!-- ---- 하단 줄: 화면 전환 탭 ---- -->
+      <nav class="max-w-7xl mx-auto px-4" aria-label="주요 화면">
+        <div class="flex gap-1 overflow-x-auto" role="tablist">
+          <button type="button" id="navMonitor" role="tab" aria-selected="true"
+                  aria-controls="panelMonitor" data-view="monitor"
+                  class="nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition">
+            📡 수집 모니터
+          </button>
+          <button type="button" id="navCuration" role="tab" aria-selected="false"
+                  aria-controls="panelCuration" data-view="curation"
+                  class="nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition">
+            📚 노트 큐레이션
+          </button>
+          <button type="button" id="navGraph" role="tab" aria-selected="false"
+                  aria-controls="panelGraph" data-view="graph"
+                  class="nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition">
+            🕸️ 토픽 지식 그래프
           </button>
         </div>
+      </nav>
+    </header>
 
-        <div class="px-4 py-3">
-          <p id="diagSummary" class="text-sm text-slate-600">–</p>
-          <div id="diagFindings" class="mt-3 space-y-2"></div>
-        </div>
-      </section>
+    <main class="max-w-7xl mx-auto px-4 py-6">
 
-      <!-- ---- 실행 이력 ---- -->
-      <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-200">
-          <h2 class="font-semibold text-sm">최근 수집 이력</h2>
+      <!-- 전역 오류 배너 -->
+      <div id="errorBanner" class="hidden mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3
+                                   text-sm text-red-700" role="alert"></div>
+
+      <!-- ==========================================================
+           패널 1: 📡 수집 모니터
+           ========================================================== -->
+      <div id="panelMonitor" role="tabpanel" aria-labelledby="navMonitor" class="space-y-6">
+
+        <!-- ---- 지표 카드 ---- -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <article class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">✅ 24시간 성공률</p>
+            <p id="mSuccessRate" class="text-2xl font-bold tabular-nums">–</p>
+            <p id="mRunCount" class="text-xs text-slate-400 mt-1">–</p>
+          </article>
+
+          <article class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">🆕 신규 저장</p>
+            <p id="mSaved" class="text-2xl font-bold tabular-nums">–</p>
+            <p id="mFetched" class="text-xs text-slate-400 mt-1">–</p>
+          </article>
+
+          <article class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">📦 누적 트렌드</p>
+            <p id="mTotal" class="text-2xl font-bold tabular-nums">–</p>
+            <p id="mAvgDuration" class="text-xs text-slate-400 mt-1">–</p>
+          </article>
+
+          <article class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs text-slate-500 mb-1">⏱️ 다음 수집</p>
+            <p id="mNextRun" class="text-2xl font-bold tabular-nums">–</p>
+            <p id="mLastRun" class="text-xs text-slate-400 mt-1">–</p>
+          </article>
         </div>
 
-        <!-- 좁은 화면에서 표가 페이지를 밀지 않도록 자체 스크롤 -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-50 text-slate-500 text-xs">
-              <tr>
-                <th scope="col" class="text-left font-medium px-4 py-2">시작 시각</th>
-                <th scope="col" class="text-left font-medium px-4 py-2">결과</th>
-                <th scope="col" class="text-right font-medium px-4 py-2">시도</th>
-                <th scope="col" class="text-right font-medium px-4 py-2">저장</th>
-                <th scope="col" class="text-right font-medium px-4 py-2">중복</th>
-                <th scope="col" class="text-right font-medium px-4 py-2">소요</th>
-                <th scope="col" class="text-left font-medium px-4 py-2">비고</th>
-              </tr>
-            </thead>
-            <tbody id="runsBody" class="divide-y divide-slate-100"></tbody>
-          </table>
-        </div>
-      </section>
+        <!-- ---- 자가 진단 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+            <h2 class="font-semibold text-sm">🩺 자가 진단</h2>
+            <span id="verdictBadge"
+                  class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">–</span>
+            <button id="diagnoseBtn"
+                    class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition">
+              다시 진단
+            </button>
+          </div>
 
-      <!-- ---- 최신 트렌드 ---- -->
-      <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-200">
-          <h2 class="font-semibold text-sm">최신 수집 항목</h2>
+          <div class="px-4 py-3">
+            <p id="diagSummary" class="text-sm text-slate-600">–</p>
+            <div id="diagFindings" class="mt-3 space-y-2"></div>
+          </div>
+        </section>
+
+        <!-- ---- 실행 이력 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200">
+            <h2 class="font-semibold text-sm">📜 최근 수집 이력</h2>
+          </div>
+
+          <!-- 좁은 화면에서 표가 페이지를 밀지 않도록 자체 스크롤 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 text-xs">
+                <tr>
+                  <th scope="col" class="text-left font-medium px-4 py-2">시작 시각</th>
+                  <th scope="col" class="text-left font-medium px-4 py-2">결과</th>
+                  <th scope="col" class="text-right font-medium px-4 py-2">시도</th>
+                  <th scope="col" class="text-right font-medium px-4 py-2">저장</th>
+                  <th scope="col" class="text-right font-medium px-4 py-2">중복</th>
+                  <th scope="col" class="text-right font-medium px-4 py-2">소요</th>
+                  <th scope="col" class="text-left font-medium px-4 py-2">비고</th>
+                </tr>
+              </thead>
+              <tbody id="runsBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ---- 최신 트렌드 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200">
+            <h2 class="font-semibold text-sm">📰 최신 수집 항목</h2>
+          </div>
+          <ul id="trendsList" class="divide-y divide-slate-100"></ul>
+        </section>
+      </div>
+
+      <!-- ==========================================================
+           패널 2: 📚 노트 큐레이션
+           ========================================================== -->
+      <div id="panelCuration" role="tabpanel" aria-labelledby="navCuration" class="hidden space-y-6">
+
+        <!-- ---- 검색 및 필터 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 p-4">
+          <h2 class="font-semibold text-sm mb-3">🔎 트렌드 탐색</h2>
+
+          <form id="curationFilterForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="lg:col-span-2">
+              <label for="curationSearch" class="block text-xs text-slate-500 mb-1">검색어</label>
+              <input id="curationSearch" type="search" placeholder="제목으로 검색"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+              <label for="curationSource" class="block text-xs text-slate-500 mb-1">소스</label>
+              <select id="curationSource"
+                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="">전체 소스</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="curationDays" class="block text-xs text-slate-500 mb-1">기간</label>
+              <div class="flex gap-2">
+                <select id="curationDays"
+                        class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">전체 기간</option>
+                  <option value="1">최근 1일</option>
+                  <option value="7">최근 7일</option>
+                  <option value="30">최근 30일</option>
+                </select>
+                <button type="submit"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 rounded-lg transition">
+                  검색
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <!-- ---- 트렌드 카드 목록 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+            <h2 class="font-semibold text-sm">📥 수집된 트렌드</h2>
+            <span id="curationCount" class="text-xs text-slate-400"></span>
+            <button id="collectBtn"
+                    class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition">
+              🛰️ 지금 수집
+            </button>
+          </div>
+
+          <div id="curationTrends" class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+          <div class="px-4 pb-4 text-center">
+            <button id="curationMoreBtn"
+                    class="hidden text-xs bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition">
+              더 보기
+            </button>
+          </div>
+        </section>
+
+        <!-- ---- 내 노트 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+            <h2 class="font-semibold text-sm">📝 내 노트</h2>
+            <span id="notesCount" class="text-xs text-slate-400"></span>
+          </div>
+          <ul id="notesList" class="divide-y divide-slate-100"></ul>
+        </section>
+      </div>
+
+      <!-- ==========================================================
+           패널 3: 🕸️ 토픽 지식 그래프
+           ========================================================== -->
+      <div id="panelGraph" role="tabpanel" aria-labelledby="navGraph" class="hidden space-y-6">
+
+        <!-- ---- 토픽 입력 ---- -->
+        <section class="bg-white rounded-xl border border-slate-200 p-4">
+          <h2 class="font-semibold text-sm mb-3">🎯 분석할 토픽</h2>
+
+          <form id="graphForm" class="space-y-3" novalidate>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input id="graphTopic" type="text" required maxlength="100"
+                     placeholder="예: transformer, 벡터 데이터베이스, 쿠버네티스"
+                     class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <button type="submit" id="graphAnalyzeBtn"
+                      class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300
+                             text-white text-sm font-medium px-5 py-2 rounded-lg transition">
+                🔬 분석하기
+              </button>
+            </div>
+
+            <!-- 분석 옵션 -->
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-600">
+              <span class="font-medium text-slate-500">데이터 소스</span>
+
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="graphSourceNotes" checked
+                       class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                📝 내 노트
+              </label>
+
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="graphSourceTrends" checked
+                       class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                📰 수집 트렌드
+              </label>
+
+              <label class="flex items-center gap-1.5">
+                <span class="font-medium text-slate-500">문헌 수</span>
+                <select id="graphLimit"
+                        class="rounded-lg border border-slate-300 px-2 py-1 bg-white
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="10">10건</option>
+                  <option value="20" selected>20건</option>
+                  <option value="30">30건</option>
+                  <option value="50">50건</option>
+                </select>
+              </label>
+            </div>
+
+            <p id="graphError" class="hidden text-sm text-red-600" role="alert"></p>
+          </form>
+
+          <!-- 추천 토픽 칩 -->
+          <div class="mt-4">
+            <p class="text-xs text-slate-500 mb-2">💡 추천 토픽</p>
+            <div id="graphSuggestions" class="flex flex-wrap gap-2">
+              <span class="text-xs text-slate-400">불러오는 중…</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---- 안내(초기) / 로딩 상태 ---- -->
+        <section id="graphIdle"
+                 class="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center">
+          <p class="text-4xl mb-3" aria-hidden="true">🕸️</p>
+          <p class="text-sm text-slate-600 font-medium">토픽을 입력하면 지식 그래프를 그려 드립니다</p>
+          <p class="text-xs text-slate-400 mt-1">
+            내 노트와 수집된 트렌드에서 관련 문헌을 찾아 연결 관계를 시각화합니다.
+          </p>
+        </section>
+
+        <section id="graphLoading" class="hidden bg-white rounded-xl border border-slate-200 p-10 text-center">
+          <p class="text-sm text-slate-500 animate-pulse">🔬 분석 중입니다…</p>
+        </section>
+
+        <!-- ---- 분석 결과 ---- -->
+        <div id="graphResult" class="hidden space-y-6">
+
+          <!-- 요약 + 지표 -->
+          <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+              <h2 class="font-semibold text-sm">📝 핵심 요약</h2>
+              <span id="graphTopicBadge"
+                    class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700"></span>
+              <span id="graphDocCount" class="text-xs text-slate-400 ml-auto"></span>
+            </div>
+            <div class="px-4 py-4">
+              <p id="graphSummary" class="text-sm leading-relaxed text-slate-700"></p>
+            </div>
+          </section>
+
+          <!-- 자동 태깅 -->
+          <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+              <h2 class="font-semibold text-sm">🏷️ 자동 태그 후보</h2>
+              <button id="applyTagsBtn"
+                      class="ml-auto text-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300
+                             text-white px-3 py-1.5 rounded-lg transition">
+                내 노트에 태그 적용
+              </button>
+            </div>
+            <div class="px-4 py-4">
+              <div id="graphKeywords" class="flex flex-wrap gap-2"></div>
+              <p id="applyTagsResult" class="hidden mt-3 text-xs" role="status"></p>
+            </div>
+          </section>
+
+          <!-- 지식 그래프 -->
+          <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+              <h2 class="font-semibold text-sm">🕸️ 지식 그래프</h2>
+
+              <!-- 범례 -->
+              <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-indigo-500" aria-hidden="true"></span>토픽
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" aria-hidden="true"></span>내 노트
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-sky-500" aria-hidden="true"></span>트렌드
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden="true"></span>키워드
+                </span>
+              </div>
+
+              <button id="graphRelayoutBtn"
+                      class="ml-auto text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition">
+                ↻ 재배치
+              </button>
+            </div>
+
+            <!-- 캔버스: 라이브러리가 이 div를 채웁니다 -->
+            <div id="graphCanvas" class="graph-canvas" role="img"
+                 aria-label="토픽과 문헌, 키워드의 연결 관계를 보여주는 지식 그래프"></div>
+
+            <!-- CDN 로드 실패 시 대체 표시 -->
+            <div id="graphFallback" class="hidden px-4 py-4">
+              <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                ⚠️ 그래프 라이브러리를 불러오지 못했습니다(오프라인 또는 CDN 차단).
+                아래 인접 목록으로 연결 관계를 확인하세요.
+              </p>
+              <div id="graphFallbackList" class="space-y-2 text-sm"></div>
+            </div>
+
+            <!-- 노드 클릭 시 상세 -->
+            <div id="graphNodeDetail"
+                 class="hidden px-4 py-3 border-t border-slate-200 bg-slate-50 text-sm"></div>
+          </section>
+
+          <!-- 근거 문헌 -->
+          <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200">
+              <h2 class="font-semibold text-sm">📄 근거 문헌</h2>
+            </div>
+            <ul id="graphDocuments" class="divide-y divide-slate-100"></ul>
+          </section>
         </div>
-        <ul id="trendsList" class="divide-y divide-slate-100"></ul>
-      </section>
+
+        <!-- 결과 없음 -->
+        <section id="graphEmpty"
+                 class="hidden bg-white rounded-xl border border-slate-200 p-10 text-center">
+          <p class="text-4xl mb-3" aria-hidden="true">🔍</p>
+          <p id="graphEmptyText" class="text-sm text-slate-600 font-medium"></p>
+          <p class="text-xs text-slate-400 mt-1">
+            다른 토픽으로 검색하거나, 큐레이션 탭에서 트렌드를 더 수집해 보세요.
+          </p>
+        </section>
+      </div>
 
     </main>
   </section>
 
+  <!--
+    스크립트 로드 순서가 중요합니다.
+    script.js가 공용 유틸($, apiFetch, showError)과 init()을 정의하고,
+    이어지는 두 파일이 그 유틸을 사용하는 화면별 로직을 정의합니다.
+    모든 classic 스크립트는 DOMContentLoaded 이전에 평가되므로
+    script.js의 init()에서 initCuration()/initGraph()를 안전하게 호출할 수 있습니다.
+  -->
   <script src="script.js"></script>
+  <script src="curation.js"></script>
+  <script src="graph.js"></script>
 </body>
 </html>
