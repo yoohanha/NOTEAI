@@ -1,0 +1,17 @@
+{
+  "description": "NOTEAI 프로젝트 - 클로드 코드 설정",
+  "model": "claude-opus-5",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "사용자 입력을 분석하세요. 입력이 `/mycode `로 시작하면, 괄호 안 내용을 기능 설명으로 추출하고 다음을 실행하세요:\n\n```\n## /mycode 자동 워크플로우 감지됨\n\n기능설명: {추출된 기능 설명}\n\n이제 다음 3단계를 자동으로 순차 실행합니다:\n\n### Phase 1: Planner\n→ 디렉토리 구조, PLAN.md, 기획 마크다운 작성\n\n### Phase 2: Backend Developer  \n→ FastAPI, SQLite/JSON, 한국어 주석 포함 구현\n\n### Phase 3: Frontend Designer\n→ Tailwind CSS 대시보드 UI 구현\n```\n\n그 후 Agent를 호출하여 실제 3단계 워크플로우를 시작하세요."
+          }
+        ]
+      }
+    ]
+  }
+}
