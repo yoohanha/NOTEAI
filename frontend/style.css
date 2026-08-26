@@ -1,0 +1,32 @@
+/* NOTEAI 수집 모니터 - Tailwind로 표현하기 어려운 부분만 보강 */
+
+/* 숫자 열의 자릿수가 흔들리지 않도록 고정폭 숫자 사용 */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 표 헤더가 스크롤 시에도 보이도록 고정 */
+#runsBody {
+  scroll-margin-top: 4rem;
+}
+
+/* 스크롤바를 옅게 처리해 표가 시각적으로 튀지 않게 함 */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+  border-radius: 9999px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* 모션 최소화를 선호하는 사용자에게는 워커 상태 점의 깜빡임을 끔 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}

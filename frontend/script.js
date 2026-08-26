@@ -1,0 +1,560 @@
+/**
+ * NOTEAI 수집 모니터 대시보드
+ *
+ * 백그라운드 워커가 갱신한 수집 상태를 주기적으로 조회해 화면을 최신으로 유지합니다.
+ * - /api/monitor/status : 워커 상태 + 통계 + 자가 진단 + 실행 이력 (1회 요청으로 통합 조회)
+ * - /api/trends         : 최근 수집 항목
+ */
+
+// ============ 상수 ============
+
+const API_BASE = '';                    // 같은 오리진에서 서빙되므로 상대 경로 사용
+const TOKEN_KEY = 'noteai_token';       // 액세스 토큰 저장 키
+const REFRESH_INTERVAL_MS = 15000;      // 자동 새로고침 주기 (15초)
+
+// 진단 심각도별 배지 스타일
+const SEVERITY_STYLES = {
+  critical: 'bg-red-100 text-red-700 border-red-200',
+  high: 'bg-orange-100 text-orange-700 border-orange-200',
+  medium: 'bg-amber-100 text-amber-700 border-amber-200',
+  low: 'bg-sky-100 text-sky-700 border-sky-200',
+};
+
+// 진단 판정별 배지 스타일
+const VERDICT_STYLES = {
+  healthy: 'bg-emerald-100 text-emerald-700',
+  degraded: 'bg-amber-100 text-amber-700',
+  unhealthy: 'bg-red-100 text-red-700',
+  unknown: 'bg-slate-100 text-slate-600',
+};
+
+const VERDICT_LABELS = {
+  healthy: '정상',
+  degraded: '주의',
+  unhealthy: '비정상',
+  unknown: '알 수 없음',
+};
+
+// 수집 결과별 배지 스타일
+const RUN_STATUS_STYLES = {
+  success: 'bg-emerald-100 text-emerald-700',
+  partial: 'bg-amber-100 text-amber-700',
+  failed: 'bg-red-100 text-red-700',
+};
+
+const RUN_STATUS_LABELS = {
+  success: '성공',
+  partial: '부분 성공',
+  failed: '실패',
+};
+
+// ============ 상태 ============
+
+let refreshTimer = null;
+
+// ============ 유틸 ============
+
+/**
+ * id로 엘리먼트를 조회합니다.
+ * @param {string} id - 엘리먼트 id
+ * @returns {HTMLElement} 엘리먼트
+ */
+const $ = (id) => document.getElementById(id);
+
+/**
+ * 저장된 액세스 토큰을 반환합니다.
+ * @returns {string|null} 토큰
+ */
+const getToken = () => localStorage.getItem(TOKEN_KEY);
+
+/**
+ * XSS를 막기 위해 텍스트로만 삽입합니다.
+ * @param {HTMLElement} el - 대상 엘리먼트
+ * @param {string} text - 삽입할 텍스트
+ */
+const setText = (el, text) => { el.textContent = text ?? '–'; };
+
+/**
+ * 인증 헤더를 붙여 API를 호출합니다.
+ * @param {string} path - API 경로
+ * @param {Object} options - fetch 옵션
+ * @returns {Promise<Object>} 응답 JSON의 data 필드
+ * @throws {Error} 요청 실패 시
+ */
+async function apiFetch(path, options = {}) {
+  const token = getToken();
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  // 토큰이 만료되면 로그인 화면으로 되돌림
+  if (response.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin();
+    throw new Error('세션이 만료되었습니다. 다시 로그인하세요.');
+  }
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.detail || `요청 실패 (HTTP ${response.status})`);
+  }
+
+  return payload.data;
+}
+
+/**
+ * UTC 기준 시각 문자열을 로컬 시각으로 표시합니다.
+ * 서버는 naive UTC를 반환하므로 Z를 붙여 UTC임을 명시합니다.
+ * @param {string|null} value - ISO 시각 문자열
+ * @returns {string} 표시용 문자열
+ */
+function formatTime(value) {
+  if (!value) return '–';
+
+  const normalized = /[Z+]|-\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) return '–';
+
+  return date.toLocaleString('ko-KR', {
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+/**
+ * 기준 시각까지 남은 시간을 사람이 읽는 형태로 변환합니다.
+ * @param {string|null} value - ISO 시각 문자열
+ * @returns {string} 예: "12분 후", "지연됨"
+ */
+function formatCountdown(value) {
+  if (!value) return '–';
+
+  const normalized = /[Z+]|-\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
+  const diffMs = new Date(normalized).getTime() - Date.now();
+
+  if (Number.isNaN(diffMs)) return '–';
+  if (diffMs <= 0) return '지연됨';
+
+  const minutes = Math.floor(diffMs / 60000);
+
+  if (minutes < 1) return '곧';
+  if (minutes < 60) return `${minutes}분 후`;
+
+  return `${Math.floor(minutes / 60)}시간 ${minutes % 60}분 후`;
+}
+
+/**
+ * 전역 오류 배너를 표시하거나 숨깁니다.
+ * @param {string|null} message - 표시할 메시지 (null이면 숨김)
+ */
+function showError(message) {
+  const banner = $('errorBanner');
+
+  if (!message) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  setText(banner, message);
+  banner.classList.remove('hidden');
+}
+
+// ============ 화면 전환 ============
+
+/** 로그인 화면을 표시합니다. */
+function showLogin() {
+  stopAutoRefresh();
+  $('dashboardView').classList.add('hidden');
+  $('loginView').classList.remove('hidden');
+  $('loginView').classList.add('flex');
+}
+
+/** 대시보드를 표시하고 데이터를 불러옵니다. */
+function showDashboard() {
+  $('loginView').classList.add('hidden');
+  $('loginView').classList.remove('flex');
+  $('dashboardView').classList.remove('hidden');
+
+  loadAll();
+
+  if ($('autoRefresh').checked) startAutoRefresh();
+}
+
+// ============ 렌더링 ============
+
+/**
+ * 워커 상태 배지를 갱신합니다.
+ * @param {Object} worker - 워커 상태
+ */
+function renderWorker(worker) {
+  const dot = $('workerDot');
+  const badge = $('workerBadge');
+
+  let label;
+  let dotColor;
+  let badgeColor;
+
+  if (!worker.running) {
+    label = '워커 중지됨';
+    dotColor = 'bg-red-500';
+    badgeColor = 'bg-red-50 text-red-700';
+  } else if (worker.stale) {
+    // 프로세스는 살아 있으나 주기를 놓친 상태 - 멈춘 것과 구분해서 알림
+    label = '워커 정체';
+    dotColor = 'bg-amber-500';
+    badgeColor = 'bg-amber-50 text-amber-700';
+  } else {
+    label = `워커 실행 중 (PID ${worker.pid})`;
+    dotColor = 'bg-emerald-500 animate-pulse';
+    badgeColor = 'bg-emerald-50 text-emerald-700';
+  }
+
+  setText($('workerText'), label);
+  dot.className = `w-1.5 h-1.5 rounded-full ${dotColor}`;
+  badge.className =
+    `inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${badgeColor}`;
+}
+
+/**
+ * 상단 지표 카드를 갱신합니다.
+ * @param {Object} data - /api/monitor/status 응답 data
+ */
+function renderMetrics(data) {
+  const { stats, worker } = data;
+
+  setText($('mSuccessRate'), `${(stats.success_rate * 100).toFixed(0)}%`);
+  setText(
+    $('mRunCount'),
+    `${stats.total_runs}회 실행 · 실패 ${stats.failed_runs}회`
+  );
+
+  setText($('mSaved'), stats.total_saved.toLocaleString('ko-KR'));
+  setText($('mFetched'), `시도 ${stats.total_fetched.toLocaleString('ko-KR')}건`);
+
+  setText($('mTotal'), (data.total_trends || 0).toLocaleString('ko-KR'));
+  setText($('mAvgDuration'), `평균 ${stats.avg_duration_seconds.toFixed(1)}초`);
+
+  setText($('mNextRun'), formatCountdown(worker.next_run_estimate));
+  setText($('mLastRun'), `직전 ${formatTime(worker.last_run_at)}`);
+}
+
+/**
+ * 자가 진단 결과를 렌더링합니다.
+ * @param {Object} diagnosis - 진단 결과
+ */
+function renderDiagnosis(diagnosis) {
+  const badge = $('verdictBadge');
+  const verdict = diagnosis.verdict || 'unknown';
+
+  setText(badge, VERDICT_LABELS[verdict] || verdict);
+  badge.className =
+    `text-xs font-medium px-2 py-0.5 rounded-full ${VERDICT_STYLES[verdict] || VERDICT_STYLES.unknown}`;
+
+  setText($('diagSummary'), diagnosis.summary);
+
+  const container = $('diagFindings');
+  container.replaceChildren();
+
+  if (!diagnosis.findings || diagnosis.findings.length === 0) {
+    return;
+  }
+
+  diagnosis.findings.forEach((finding) => {
+    const card = document.createElement('div');
+    card.className =
+      `rounded-lg border px-3 py-2.5 ${SEVERITY_STYLES[finding.severity] || SEVERITY_STYLES.low}`;
+
+    // 제목 줄: 심각도 · 증상명 · 건수
+    const head = document.createElement('div');
+    head.className = 'flex items-center gap-2 flex-wrap';
+
+    const sev = document.createElement('span');
+    sev.className = 'text-xs font-bold uppercase';
+    sev.textContent = finding.severity;
+
+    const label = document.createElement('span');
+    label.className = 'text-sm font-medium';
+    label.textContent = finding.label;
+
+    const count = document.createElement('span');
+    count.className = 'text-xs opacity-70';
+    count.textContent = `${finding.count}건`;
+
+    head.append(sev, label, count);
+
+    if (finding.transient) {
+      const tag = document.createElement('span');
+      tag.className = 'text-xs px-1.5 py-0.5 rounded bg-white/60';
+      tag.textContent = '일시적';
+      head.append(tag);
+    }
+
+    // 원인과 조치
+    const cause = document.createElement('p');
+    cause.className = 'text-xs mt-1.5 opacity-90';
+    cause.textContent = `원인: ${finding.cause}`;
+
+    const action = document.createElement('p');
+    action.className = 'text-xs mt-1 opacity-90';
+    action.textContent = `조치: ${finding.action}`;
+
+    card.append(head, cause, action);
+    container.append(card);
+  });
+}
+
+/**
+ * 실행 이력 표를 렌더링합니다.
+ * @param {Array<Object>} runs - 실행 기록 목록
+ */
+function renderRuns(runs) {
+  const body = $('runsBody');
+  body.replaceChildren();
+
+  if (!runs || runs.length === 0) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'px-4 py-6 text-center text-sm text-slate-400';
+    cell.textContent = '아직 수집 이력이 없습니다. 워커를 실행하세요.';
+    row.append(cell);
+    body.append(row);
+    return;
+  }
+
+  runs.forEach((run) => {
+    const row = document.createElement('tr');
+    row.className = 'hover:bg-slate-50';
+
+    // 시작 시각
+    const time = document.createElement('td');
+    time.className = 'px-4 py-2 whitespace-nowrap text-slate-600';
+    time.textContent = formatTime(run.started_at);
+
+    // 결과 배지
+    const statusCell = document.createElement('td');
+    statusCell.className = 'px-4 py-2 whitespace-nowrap';
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className =
+      `text-xs font-medium px-2 py-0.5 rounded-full ${RUN_STATUS_STYLES[run.status] || ''}`;
+    statusBadge.textContent = RUN_STATUS_LABELS[run.status] || run.status;
+    statusCell.append(statusBadge);
+
+    // 숫자 열
+    const makeNum = (value) => {
+      const cell = document.createElement('td');
+      cell.className = 'px-4 py-2 text-right tabular-nums text-slate-600';
+      cell.textContent = value;
+      return cell;
+    };
+
+    const fetched = makeNum((run.fetched || 0).toLocaleString('ko-KR'));
+    const saved = makeNum((run.saved || 0).toLocaleString('ko-KR'));
+    const duplicates = makeNum((run.duplicates || 0).toLocaleString('ko-KR'));
+    const duration = makeNum(`${(run.duration_seconds || 0).toFixed(1)}초`);
+
+    // 비고: 사이클 실패 메시지 우선, 없으면 소스별 실패 요약
+    const note = document.createElement('td');
+    note.className = 'px-4 py-2 text-xs text-slate-500 max-w-xs truncate';
+
+    if (run.error_message) {
+      note.textContent = run.error_message;
+      note.title = run.error_message;
+      note.classList.add('text-red-600');
+    } else if (run.errors && run.errors.length > 0) {
+      const text = run.errors.join(' / ');
+      note.textContent = `${run.errors.length}개 소스 실패`;
+      note.title = text;
+    } else {
+      note.textContent = '–';
+    }
+
+    row.append(time, statusCell, fetched, saved, duplicates, duration, note);
+    body.append(row);
+  });
+}
+
+/**
+ * 최신 수집 항목 목록을 렌더링합니다.
+ * @param {Array<Object>} items - 트렌드 항목
+ */
+function renderTrends(items) {
+  const list = $('trendsList');
+  list.replaceChildren();
+
+  if (!items || items.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'px-4 py-6 text-center text-sm text-slate-400';
+    empty.textContent = '수집된 항목이 없습니다.';
+    list.append(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'px-4 py-3 hover:bg-slate-50';
+
+    const link = document.createElement('a');
+    link.href = item.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'text-sm font-medium text-indigo-700 hover:underline';
+    link.textContent = item.title;
+
+    const meta = document.createElement('p');
+    meta.className = 'text-xs text-slate-400 mt-0.5';
+    meta.textContent =
+      `${item.source_name || item.source_key} · ${formatTime(item.published_at)}`;
+
+    li.append(link, meta);
+    list.append(li);
+  });
+}
+
+// ============ 데이터 로딩 ============
+
+/**
+ * 대시보드 전체 데이터를 새로 불러옵니다.
+ * 두 요청은 서로 독립적이므로 병렬로 보내고, 한쪽이 실패해도
+ * 다른 쪽 결과는 화면에 반영합니다.
+ */
+async function loadAll() {
+  showError(null);
+
+  const [statusResult, trendsResult] = await Promise.allSettled([
+    apiFetch('/api/monitor/status?hours=24&recent_limit=10'),
+    apiFetch('/api/trends?page=1&limit=8'),
+  ]);
+
+  if (statusResult.status === 'fulfilled') {
+    const data = statusResult.value;
+    renderWorker(data.worker);
+    renderMetrics(data);
+    renderDiagnosis(data.diagnosis);
+    renderRuns(data.recent_runs);
+  } else {
+    showError(`상태 조회 실패: ${statusResult.reason.message}`);
+  }
+
+  if (trendsResult.status === 'fulfilled') {
+    renderTrends(trendsResult.value.items);
+  }
+
+  setText($('lastUpdated'), `업데이트 ${new Date().toLocaleTimeString('ko-KR')}`);
+}
+
+/** 자동 새로고침을 시작합니다. */
+function startAutoRefresh() {
+  stopAutoRefresh();
+  refreshTimer = setInterval(loadAll, REFRESH_INTERVAL_MS);
+}
+
+/** 자동 새로고침을 중지합니다. */
+function stopAutoRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+// ============ 이벤트 바인딩 ============
+
+/**
+ * 로그인 폼 제출을 처리합니다.
+ * @param {Event} event - submit 이벤트
+ */
+async function handleLogin(event) {
+  event.preventDefault();
+
+  const username = $('username').value.trim();
+  const password = $('password').value;
+  const errorEl = $('loginError');
+  const button = $('loginBtn');
+
+  errorEl.classList.add('hidden');
+
+  // 클라이언트 측 입력 검증
+  if (!username || !password) {
+    setText(errorEl, '사용자명과 비밀번호를 모두 입력하세요.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  button.disabled = true;
+  setText(button, '로그인 중…');
+
+  try {
+    const data = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+    $('password').value = '';
+    showDashboard();
+  } catch (error) {
+    setText(errorEl, error.message);
+    errorEl.classList.remove('hidden');
+  } finally {
+    button.disabled = false;
+    setText(button, '로그인');
+  }
+}
+
+/** 자가 진단을 다시 실행합니다. */
+async function handleDiagnose() {
+  const button = $('diagnoseBtn');
+  button.disabled = true;
+  setText(button, '진단 중…');
+
+  try {
+    const data = await apiFetch('/api/monitor/diagnose?hours=24');
+    renderDiagnosis(data);
+  } catch (error) {
+    showError(`진단 실패: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    setText(button, '다시 진단');
+  }
+}
+
+/** 페이지 초기화 - 토큰이 있으면 바로 대시보드를 엽니다. */
+function init() {
+  $('loginForm').addEventListener('submit', handleLogin);
+  $('refreshBtn').addEventListener('click', loadAll);
+  $('diagnoseBtn').addEventListener('click', handleDiagnose);
+
+  $('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin();
+  });
+
+  $('autoRefresh').addEventListener('change', (event) => {
+    if (event.target.checked) startAutoRefresh();
+    else stopAutoRefresh();
+  });
+
+  // 탭이 백그라운드일 때는 폴링을 멈춰 불필요한 요청을 줄임
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else if ($('autoRefresh').checked && !$('dashboardView').classList.contains('hidden')) {
+      loadAll();
+      startAutoRefresh();
+    }
+  });
+
+  if (getToken()) showDashboard();
+  else showLogin();
+}
+
+document.addEventListener('DOMContentLoaded', init);

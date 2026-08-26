@@ -72,6 +72,36 @@ class Settings(BaseSettings):
     NEWSAPI_KEY: str = ""
     NEWSAPI_LANGUAGE: str = "en"
 
+    # ============ Monitor (24시간 백그라운드 수집) 설정 ============
+    # 정상 수집 주기 (초). 기본 30분
+    MONITOR_INTERVAL_SECONDS: int = 1800
+
+    # 주기에 적용할 지터 비율 (0.1 = ±10%)
+    # 여러 인스턴스가 동시에 외부 API를 때리는 것을 방지
+    MONITOR_JITTER_RATIO: float = 0.1
+
+    # 실패 시 지수 백오프 기준/상한 (초)
+    MONITOR_BACKOFF_BASE: int = 60
+    MONITOR_BACKOFF_MAX: int = 3600
+
+    # 연속 실패가 이 횟수를 넘으면 자가 진단을 강제 실행하고 경보 상태로 전환
+    MONITOR_MAX_CONSECUTIVE_FAILURES: int = 3
+
+    # 한 사이클에서 소스당 수집할 최대 항목 수
+    MONITOR_LIMIT_PER_SOURCE: int = 30
+
+    # 로그 파일 설정
+    MONITOR_LOG_DIR: str = "./logs"
+    MONITOR_LOG_FILE: str = "monitor.log"
+    MONITOR_LOG_MAX_BYTES: int = 5 * 1024 * 1024  # 5MB
+    MONITOR_LOG_BACKUP_COUNT: int = 5
+
+    # 중복 실행 방지 잠금 파일
+    MONITOR_LOCK_FILE: str = "./monitor.lock"
+
+    # 수집 이력 보관 기간 (일). 초과분은 사이클마다 정리
+    MONITOR_RETENTION_DAYS: int = 14
+
     class Config:
         env_file = ".env"
         case_sensitive = True

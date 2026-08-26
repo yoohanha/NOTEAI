@@ -12,13 +12,20 @@ import uvicorn
 
 # Core 모듈
 from core.config import settings
-from core.database import init_db
+from core.database import init_db, register_models
+
+# 모델 간 relationship은 문자열로 참조되므로, 앱을 import하는 것만으로
+# 모든 모델이 레지스트리에 등록되어 있어야 합니다. startup 이벤트에만
+# 의존하면 TestClient나 스크립트가 앱을 import했을 때 매퍼 설정이
+# InvalidRequestError로 실패합니다.
+register_models()
 
 # Feature 라우터
 from features.auth.routes import router as auth_router
 from features.notes.routes import router as notes_router
 from features.vault.routes import router as vault_router
 from features.trends.routes import router as trends_router
+from features.monitor.routes import router as monitor_router
 
 # FastAPI 앱 초기화
 app = FastAPI(
@@ -38,10 +45,10 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
-# 프론트엔드 정적 파일 서빙 (선택)
-# frontend_path = Path(__file__).parent.parent / "frontend"
-# if frontend_path.exists():
-#     app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="static")
+# 프론트엔드 정적 파일 서빙
+# 주의: StaticFiles를 "/"에 마운트하면 이후 등록되는 라우트를 가리므로,
+# 모든 API 라우터를 등록한 뒤 파일 맨 아래에서 마운트합니다.
+FRONTEND_PATH = Path(__file__).parent.parent / "frontend"
 
 
 # ============ 라우터 등록 ============
@@ -49,6 +56,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(notes_router, prefix="/api")
 app.include_router(vault_router, prefix="/api")    # 로컬 노트 스캔/가져오기
 app.include_router(trends_router, prefix="/api")   # 기술 트렌드 수집
+app.include_router(monitor_router, prefix="/api")  # 백그라운드 수집 모니터링
 # 추가 라우터: users, comments, teams, ai
 
 
@@ -122,16 +130,29 @@ async def shutdown_event():
     print("👋 애플리케이션 종료 중...")
 
 
-# ============ 루트 경로 ============
-@app.get("/")
-async def root() -> dict:
-    """루트 경로"""
+# ============ API 루트 경로 ============
+# "/"는 프론트엔드 대시보드(frontend/index.html)가 사용하므로
+# API 안내는 "/api"로 제공합니다.
+@app.get("/api")
+async def api_root() -> dict:
+    """API 루트 - 서비스 정보 안내"""
     return {
         "message": f"Welcome to {settings.APP_NAME}",
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "redoc": "/redoc",
     }
+
+
+# ============ 정적 파일 마운트 ============
+# 반드시 모든 API 라우트 등록 이후에 위치해야 합니다.
+# "/"에 마운트하면 이 시점 이후의 경로 매칭을 StaticFiles가 가져가기 때문입니다.
+if FRONTEND_PATH.exists():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(FRONTEND_PATH), html=True),
+        name="static",
+    )
 
 
 # ============ 메인 실행 ============

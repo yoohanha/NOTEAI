@@ -57,3 +57,9 @@ logs/
 # ============ 프론트엔드 ============
 node_modules/
 .next/
+
+# ============ 모니터 워커 ============
+monitor.lock
+*.lock
+_e2e*
+_w*test*
