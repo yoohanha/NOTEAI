@@ -23,12 +23,6 @@ email-validator==2.1.0
 httpx==0.25.2
 requests==2.31.0
 
-# AI/NLP
-transformers==4.35.2
-torch==2.1.1
-scikit-learn==1.3.2
-nltk==3.8.1
-
 # 유틸리티
 python-dotenv==1.0.0
 PyYAML==6.0.1
