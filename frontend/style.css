@@ -1,4 +1,45 @@
-/* NOTEAI 대시보드 - Tailwind로 표현하기 어려운 부분만 보강 */
+/* NOTEAI 대시보드 — 크림톤 미니멀 디자인 토큰 */
+
+:root {
+  --cream-50: #fffbf5;
+  --cream-100: #f6eee1;
+  --cream-200: #e8dcc8;
+  --paper: #fffefb;
+  --ink: #2c2925;
+  --ink-muted: #6f6a62;
+  --forest: #3d5c4a;
+  --shadow-soft: 0 1px 2px rgba(44, 41, 37, 0.04),
+    0 10px 28px rgba(44, 41, 37, 0.05);
+}
+
+html,
+body {
+  font-family: Pretendard, Inter, ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--cream-50);
+  color: var(--ink);
+}
+
+/* 로그인 화면: 따뜻한 크림 위에 아주 옅은 유기적 하이라이트 */
+#loginView {
+  background:
+    radial-gradient(ellipse 70% 50% at 8% 12%, rgba(61, 92, 74, 0.07), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 88%, rgba(196, 163, 90, 0.1), transparent 50%),
+    var(--cream-50);
+}
+
+/* 포커스 가능한 폼 컨트롤 — 딥 그린 링 */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  accent-color: var(--forest);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--forest);
+}
 
 /* ============ 지식 그래프 캔버스 ============ */
 
@@ -10,9 +51,9 @@
 .graph-canvas {
   width: 100%;
   height: clamp(360px, 60vh, 640px);
-  background-color: rgb(248 250 252);   /* slate-50 */
+  background-color: var(--cream-50);
   background-image:
-    radial-gradient(rgb(226 232 240) 1px, transparent 1px);
+    radial-gradient(#e8dcc8 1px, transparent 1px);
   background-size: 18px 18px;           /* 옅은 격자 - 팬/줌 방향을 인지하기 쉬움 */
   touch-action: none;                   /* 모바일에서 그래프 드래그가 페이지 스크롤로 새지 않게 */
 }
@@ -33,13 +74,13 @@
   scroll-margin-top: 4rem;
 }
 
-/* 스크롤바를 옅게 처리해 표가 시각적으로 튀지 않게 함 */
+/* 스크롤바를 크림톤에 맞춰 옅게 처리 */
 .overflow-x-auto::-webkit-scrollbar {
   height: 8px;
 }
 
 .overflow-x-auto::-webkit-scrollbar-thumb {
-  background-color: rgb(203 213 225);
+  background-color: #d9c9b0;
   border-radius: 9999px;
 }
 

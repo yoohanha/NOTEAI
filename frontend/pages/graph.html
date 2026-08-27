@@ -1,0 +1,190 @@
+<!--
+  🕸️ 탭 3 · 토픽 지식 그래프 화면
+
+  이 파일은 index.html의 #panelGraph 컨테이너 안으로 주입되는 조각(partial)입니다.
+  단독으로 열면 스타일이 적용되지 않습니다. 반드시 index.html을 통해 보세요.
+  주입 시점: script.js의 loadPanels()가 DOMContentLoaded 직후 한 번만 fetch합니다.
+-->
+<!-- ---- 토픽 입력 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+          aria-hidden="true">🎯</span>
+    <h2 class="font-semibold text-sm">분석할 토픽</h2>
+  </div>
+
+  <form id="graphForm" class="space-y-3" novalidate>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <input id="graphTopic" type="text" required maxlength="100"
+             placeholder="예: transformer, 벡터 데이터베이스, 쿠버네티스"
+             class="flex-1 rounded-xl border border-cream-300 bg-paper px-3 py-2.5 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
+      <button type="submit" id="graphAnalyzeBtn"
+              class="bg-forest-600 hover:bg-forest-700 disabled:bg-forest-200
+                     text-cream-50 text-sm font-medium px-5 py-2.5 rounded-xl transition">
+        🔬 분석하기
+      </button>
+    </div>
+
+    <!-- 분석 옵션 -->
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-muted">
+      <span class="font-medium text-ink-faint">데이터 소스</span>
+
+      <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="graphSourceNotes" checked
+               class="rounded border-cream-300 text-forest-600 focus:ring-forest-500">
+        📝 내 노트
+      </label>
+
+      <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="graphSourceTrends" checked
+               class="rounded border-cream-300 text-forest-600 focus:ring-forest-500">
+        📰 수집 트렌드
+      </label>
+
+      <label class="flex items-center gap-1.5">
+        <span class="font-medium text-ink-faint">문헌 수</span>
+        <select id="graphLimit"
+                class="rounded-xl border border-cream-300 px-2 py-1 bg-paper
+                       focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
+          <option value="10">10건</option>
+          <option value="20" selected>20건</option>
+          <option value="30">30건</option>
+          <option value="50">50건</option>
+        </select>
+      </label>
+    </div>
+
+    <p id="graphError" class="hidden text-sm text-red-600" role="alert"></p>
+  </form>
+
+  <!-- 추천 토픽 칩 -->
+  <div class="mt-4">
+    <p class="text-xs text-ink-muted mb-2">💡 추천 토픽</p>
+    <div id="graphSuggestions" class="flex flex-wrap gap-2">
+      <span class="text-xs text-ink-faint">불러오는 중…</span>
+    </div>
+  </div>
+</section>
+
+<!-- ---- 안내(초기) / 로딩 상태 ---- -->
+<section id="graphIdle"
+         class="bg-paper rounded-2xl border border-dashed border-cream-300 shadow-soft p-12 text-center">
+  <p class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-forest-50 flex items-center justify-center text-3xl"
+     aria-hidden="true">🕸️</p>
+  <p class="text-sm text-ink-muted font-medium">토픽을 입력하면 지식 그래프를 그려 드립니다</p>
+  <p class="text-xs text-ink-faint mt-1">
+    내 노트와 수집된 트렌드에서 관련 문헌을 찾아 연결 관계를 시각화합니다.
+  </p>
+</section>
+
+<section id="graphLoading" class="hidden bg-paper rounded-2xl border border-cream-200 shadow-soft p-12 text-center">
+  <p class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-cream-100 flex items-center justify-center text-3xl"
+     aria-hidden="true">🔬</p>
+  <p class="text-sm text-ink-muted animate-pulse">분석 중입니다…</p>
+</section>
+
+<!-- ---- 분석 결과 ---- -->
+<div id="graphResult" class="hidden space-y-6">
+
+  <!-- 요약 + 지표 -->
+  <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+    <div class="px-5 py-4 border-b border-cream-200 flex flex-wrap items-center gap-3">
+      <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+            aria-hidden="true">📝</span>
+      <h2 class="font-semibold text-sm">핵심 요약</h2>
+      <span id="graphTopicBadge"
+            class="text-xs font-medium px-2 py-0.5 rounded-full bg-forest-50 text-forest-700"></span>
+      <span id="graphDocCount" class="text-xs text-ink-faint ml-auto"></span>
+    </div>
+    <div class="px-5 py-5">
+      <p id="graphSummary" class="text-sm leading-relaxed text-ink"></p>
+    </div>
+  </section>
+
+  <!-- 자동 태깅 -->
+  <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+    <div class="px-5 py-4 border-b border-cream-200 flex flex-wrap items-center gap-3">
+      <span class="w-8 h-8 rounded-xl bg-cream-100 flex items-center justify-center text-sm"
+            aria-hidden="true">🏷️</span>
+      <h2 class="font-semibold text-sm">자동 태그 후보</h2>
+      <button id="applyTagsBtn"
+              class="ml-auto text-xs bg-forest-600 hover:bg-forest-700 disabled:bg-forest-200
+                     text-cream-50 px-3 py-1.5 rounded-xl transition">
+        내 노트에 태그 적용
+      </button>
+    </div>
+    <div class="px-5 py-5">
+      <div id="graphKeywords" class="flex flex-wrap gap-2"></div>
+      <p id="applyTagsResult" class="hidden mt-3 text-xs" role="status"></p>
+    </div>
+  </section>
+
+  <!-- 지식 그래프 -->
+  <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+    <div class="px-5 py-4 border-b border-cream-200 flex flex-wrap items-center gap-3">
+      <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+            aria-hidden="true">🕸️</span>
+      <h2 class="font-semibold text-sm">지식 그래프</h2>
+
+      <!-- 범례 — graph.js NODE_COLORS와 동일해야 합니다 -->
+      <div class="flex flex-wrap items-center gap-3 text-xs text-ink-muted">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-forest-600" aria-hidden="true"></span>토픽
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background-color:#6B8F71" aria-hidden="true"></span>내 노트
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background-color:#C17F4A" aria-hidden="true"></span>트렌드
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background-color:#C4A35A" aria-hidden="true"></span>키워드
+        </span>
+      </div>
+
+      <button id="graphRelayoutBtn"
+              class="ml-auto text-xs bg-cream-100 hover:bg-cream-200 px-3 py-1.5 rounded-xl transition">
+        ↻ 재배치
+      </button>
+    </div>
+
+    <!-- 캔버스: 라이브러리가 이 div를 채웁니다 -->
+    <div id="graphCanvas" class="graph-canvas" role="img"
+         aria-label="토픽과 문헌, 키워드의 연결 관계를 보여주는 지식 그래프"></div>
+
+    <!-- CDN 로드 실패 시 대체 표시 -->
+    <div id="graphFallback" class="hidden px-5 py-5">
+      <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
+        ⚠️ 그래프 라이브러리를 불러오지 못했습니다(오프라인 또는 CDN 차단).
+        아래 인접 목록으로 연결 관계를 확인하세요.
+      </p>
+      <div id="graphFallbackList" class="space-y-2 text-sm"></div>
+    </div>
+
+    <!-- 노드 클릭 시 상세 -->
+    <div id="graphNodeDetail"
+         class="hidden px-5 py-4 border-t border-cream-200 bg-cream-50 text-sm"></div>
+  </section>
+
+  <!-- 근거 문헌 -->
+  <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+    <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+      <span class="w-8 h-8 rounded-xl bg-cream-100 flex items-center justify-center text-sm"
+            aria-hidden="true">📄</span>
+      <h2 class="font-semibold text-sm">근거 문헌</h2>
+    </div>
+    <ul id="graphDocuments" class="divide-y divide-cream-100"></ul>
+  </section>
+</div>
+
+<!-- 결과 없음 -->
+<section id="graphEmpty"
+         class="hidden bg-paper rounded-2xl border border-cream-200 shadow-soft p-12 text-center">
+  <p class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-cream-100 flex items-center justify-center text-3xl"
+     aria-hidden="true">🔍</p>
+  <p id="graphEmptyText" class="text-sm text-ink-muted font-medium"></p>
+  <p class="text-xs text-ink-faint mt-1">
+    다른 토픽으로 검색하거나, 큐레이션 탭에서 트렌드를 더 수집해 보세요.
+  </p>
+</section>

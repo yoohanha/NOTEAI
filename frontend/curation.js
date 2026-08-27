@@ -55,7 +55,7 @@ function buildQuery(params) {
 function appendTagChips(container, tags, max = 4) {
   (tags || []).slice(0, max).forEach((tag) => {
     const chip = document.createElement('span');
-    chip.className = 'text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full';
+    chip.className = 'text-[11px] bg-cream-100 text-ink-muted px-2 py-0.5 rounded-full';
     chip.textContent = `#${tag}`;
     container.appendChild(chip);
   });
@@ -66,14 +66,23 @@ function appendTagChips(container, tags, max = 4) {
  * @param {HTMLElement} container - 대상 컨테이너
  * @param {string} message - 표시할 문구
  */
-function renderEmptyState(container, message) {
+function renderEmptyState(container, message, emoji = '📭') {
   container.replaceChildren();
 
+  const wrap = document.createElement('div');
+  wrap.className = 'col-span-full flex flex-col items-center py-10 px-4';
+
+  const icon = document.createElement('p');
+  icon.className = 'w-14 h-14 rounded-2xl bg-cream-100 flex items-center justify-center text-2xl mb-3';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = emoji;
+
   const empty = document.createElement('p');
-  empty.className = 'text-sm text-slate-400 py-8 text-center col-span-full';
+  empty.className = 'text-sm text-ink-faint text-center';
   empty.textContent = message;
 
-  container.appendChild(empty);
+  wrap.append(icon, empty);
+  container.appendChild(wrap);
 }
 
 // ============ 렌더링 ============
@@ -89,20 +98,21 @@ function renderEmptyState(container, message) {
 function createTrendCard(item) {
   const card = document.createElement('article');
   card.className =
-    'border border-slate-200 rounded-xl p-4 flex flex-col gap-2 hover:border-indigo-300 transition';
+    'border border-cream-200 rounded-2xl p-5 flex flex-col gap-2 bg-cream-50/40 ' +
+    'hover:border-forest-200 hover:shadow-soft transition';
 
   // ---- 출처 / 발행일 ----
   const metaRow = document.createElement('div');
-  metaRow.className = 'flex items-center gap-2 text-[11px] text-slate-400';
+  metaRow.className = 'flex items-center gap-2 text-[11px] text-ink-faint';
 
   const source = document.createElement('span');
-  source.className = 'font-medium text-slate-500';
+  source.className = 'font-medium text-ink-muted';
   source.textContent = item.source_name || item.source_key || '알 수 없는 소스';
   metaRow.appendChild(source);
 
   if (item.category) {
     const category = document.createElement('span');
-    category.className = 'bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded';
+    category.className = 'bg-cream-100 text-ink-muted px-1.5 py-0.5 rounded-lg';
     category.textContent = item.category;
     metaRow.appendChild(category);
   }
@@ -123,7 +133,7 @@ function createTrendCard(item) {
   // ---- 요약 ----
   if (item.summary) {
     const summary = document.createElement('p');
-    summary.className = 'text-xs text-slate-500 leading-relaxed line-clamp-3';
+    summary.className = 'text-xs text-ink-muted leading-relaxed line-clamp-3';
     summary.textContent = item.summary;
     card.appendChild(summary);
   }
@@ -144,15 +154,15 @@ function createTrendCard(item) {
   openLink.href = item.url;
   openLink.target = '_blank';
   openLink.rel = 'noopener noreferrer';   // 원문 탭이 이 페이지를 조작하지 못하게 차단
-  openLink.className = 'text-xs text-indigo-600 hover:underline';
+  openLink.className = 'text-xs text-forest-600 hover:underline';
   openLink.textContent = '🔗 원문 열기';
   actions.appendChild(openLink);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className =
-    'ml-auto text-xs bg-slate-100 hover:bg-slate-200 disabled:bg-emerald-100 ' +
-    'disabled:text-emerald-700 px-3 py-1.5 rounded-lg transition';
+    'ml-auto text-xs bg-cream-100 hover:bg-cream-200 disabled:bg-forest-50 ' +
+    'disabled:text-forest-700 px-3 py-1.5 rounded-xl transition';
 
   if (item.is_saved) {
     saveBtn.textContent = '✅ 저장됨';
@@ -179,7 +189,11 @@ function renderCurationTrends(items, append = false) {
   if (!append) container.replaceChildren();
 
   if (!items.length && !append) {
-    renderEmptyState(container, '조건에 맞는 트렌드가 없습니다. 🛰️ 지금 수집을 눌러 보세요.');
+    renderEmptyState(
+      container,
+      '조건에 맞는 트렌드가 없습니다. 🛰️ 지금 수집을 눌러 보세요.',
+      '🛰️'
+    );
     return;
   }
 
@@ -198,8 +212,18 @@ function renderNotes(notes) {
 
   if (!notes.length) {
     const empty = document.createElement('li');
-    empty.className = 'text-sm text-slate-400 py-8 text-center';
-    empty.textContent = '아직 담은 노트가 없습니다. 위 트렌드에서 📌 버튼을 눌러 보세요.';
+    empty.className = 'px-5 py-10 text-center';
+    const wrap = document.createElement('div');
+    wrap.className = 'flex flex-col items-center gap-2';
+    const icon = document.createElement('span');
+    icon.className = 'w-12 h-12 rounded-2xl bg-cream-100 flex items-center justify-center text-xl';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '📌';
+    const text = document.createElement('span');
+    text.className = 'text-sm text-ink-faint';
+    text.textContent = '아직 담은 노트가 없습니다. 위 트렌드에서 📌 버튼을 눌러 보세요.';
+    wrap.append(icon, text);
+    empty.append(wrap);
     list.appendChild(empty);
     return;
   }
@@ -208,7 +232,7 @@ function renderNotes(notes) {
 
   notes.forEach((note) => {
     const row = document.createElement('li');
-    row.className = 'px-4 py-3';
+    row.className = 'px-5 py-4 hover:bg-cream-50/80';
 
     const header = document.createElement('div');
     header.className = 'flex items-start gap-3';
@@ -219,7 +243,7 @@ function renderNotes(notes) {
     header.appendChild(title);
 
     const date = document.createElement('span');
-    date.className = 'ml-auto text-[11px] text-slate-400 whitespace-nowrap';
+    date.className = 'ml-auto text-[11px] text-ink-faint whitespace-nowrap';
     date.textContent = formatTime(note.updated_at || note.created_at);
     header.appendChild(date);
 
@@ -228,7 +252,7 @@ function renderNotes(notes) {
     // 본문 미리보기 - 마크다운 기호는 그대로 두되 길이만 자릅니다.
     if (note.content) {
       const preview = document.createElement('p');
-      preview.className = 'text-xs text-slate-500 mt-1 line-clamp-2';
+      preview.className = 'text-xs text-ink-muted mt-1 line-clamp-2';
       preview.textContent = note.content.slice(0, 200);
       row.appendChild(preview);
     }
@@ -239,7 +263,7 @@ function renderNotes(notes) {
 
       if (note.category) {
         const category = document.createElement('span');
-        category.className = 'text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full';
+        category.className = 'text-[11px] bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full';
         category.textContent = note.category;
         tagRow.appendChild(category);
       }

@@ -1,0 +1,114 @@
+<!--
+  📡 탭 1 · 수집 모니터 화면
+
+  이 파일은 index.html의 #panelMonitor 컨테이너 안으로 주입되는 조각(partial)입니다.
+  단독으로 열면 스타일이 적용되지 않습니다. 반드시 index.html을 통해 보세요.
+  주입 시점: script.js의 loadPanels()가 DOMContentLoaded 직후 한 번만 fetch합니다.
+-->
+<!-- ---- 지표 카드 ---- -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+  <article class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+    <div class="flex items-start gap-3">
+      <span class="w-10 h-10 shrink-0 rounded-xl bg-forest-50 flex items-center justify-center text-lg"
+            aria-hidden="true">✅</span>
+      <div class="min-w-0">
+        <p class="text-xs text-ink-muted mb-1">24시간 성공률</p>
+        <p id="mSuccessRate" class="text-2xl font-bold tabular-nums tracking-tight">–</p>
+        <p id="mRunCount" class="text-xs text-ink-faint mt-1">–</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+    <div class="flex items-start gap-3">
+      <span class="w-10 h-10 shrink-0 rounded-xl bg-cream-100 flex items-center justify-center text-lg"
+            aria-hidden="true">🆕</span>
+      <div class="min-w-0">
+        <p class="text-xs text-ink-muted mb-1">신규 저장</p>
+        <p id="mSaved" class="text-2xl font-bold tabular-nums tracking-tight">–</p>
+        <p id="mFetched" class="text-xs text-ink-faint mt-1">–</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+    <div class="flex items-start gap-3">
+      <span class="w-10 h-10 shrink-0 rounded-xl bg-cream-100 flex items-center justify-center text-lg"
+            aria-hidden="true">📦</span>
+      <div class="min-w-0">
+        <p class="text-xs text-ink-muted mb-1">누적 트렌드</p>
+        <p id="mTotal" class="text-2xl font-bold tabular-nums tracking-tight">–</p>
+        <p id="mAvgDuration" class="text-xs text-ink-faint mt-1">–</p>
+      </div>
+    </div>
+  </article>
+
+  <article class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+    <div class="flex items-start gap-3">
+      <span class="w-10 h-10 shrink-0 rounded-xl bg-cream-100 flex items-center justify-center text-lg"
+            aria-hidden="true">⏱️</span>
+      <div class="min-w-0">
+        <p class="text-xs text-ink-muted mb-1">다음 수집</p>
+        <p id="mNextRun" class="text-2xl font-bold tabular-nums tracking-tight">–</p>
+        <p id="mLastRun" class="text-xs text-ink-faint mt-1">–</p>
+      </div>
+    </div>
+  </article>
+</div>
+
+<!-- ---- 자가 진단 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+  <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+    <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+          aria-hidden="true">🩺</span>
+    <h2 class="font-semibold text-sm">자가 진단</h2>
+    <span id="verdictBadge"
+          class="text-xs font-medium px-2 py-0.5 rounded-full bg-cream-100 text-ink-muted">–</span>
+    <button id="diagnoseBtn"
+            class="ml-auto text-xs bg-cream-100 hover:bg-cream-200 px-3 py-1.5 rounded-xl transition">
+      다시 진단
+    </button>
+  </div>
+
+  <div class="px-5 py-4">
+    <p id="diagSummary" class="text-sm text-ink-muted">–</p>
+    <div id="diagFindings" class="mt-3 space-y-2"></div>
+  </div>
+</section>
+
+<!-- ---- 실행 이력 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+  <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+    <span class="w-8 h-8 rounded-xl bg-cream-100 flex items-center justify-center text-sm"
+          aria-hidden="true">📜</span>
+    <h2 class="font-semibold text-sm">최근 수집 이력</h2>
+  </div>
+
+  <!-- 좁은 화면에서 표가 페이지를 밀지 않도록 자체 스크롤 -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-cream-50 text-ink-muted text-xs">
+        <tr>
+          <th scope="col" class="text-left font-medium px-5 py-2.5">시작 시각</th>
+          <th scope="col" class="text-left font-medium px-5 py-2.5">결과</th>
+          <th scope="col" class="text-right font-medium px-5 py-2.5">시도</th>
+          <th scope="col" class="text-right font-medium px-5 py-2.5">저장</th>
+          <th scope="col" class="text-right font-medium px-5 py-2.5">중복</th>
+          <th scope="col" class="text-right font-medium px-5 py-2.5">소요</th>
+          <th scope="col" class="text-left font-medium px-5 py-2.5">비고</th>
+        </tr>
+      </thead>
+      <tbody id="runsBody" class="divide-y divide-cream-100"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ---- 최신 트렌드 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+  <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+    <span class="w-8 h-8 rounded-xl bg-cream-100 flex items-center justify-center text-sm"
+          aria-hidden="true">📰</span>
+    <h2 class="font-semibold text-sm">최신 수집 항목</h2>
+  </div>
+  <ul id="trendsList" class="divide-y divide-cream-100"></ul>
+</section>

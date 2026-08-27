@@ -1,0 +1,85 @@
+<!--
+  📚 탭 2 · 노트 큐레이션 화면
+
+  이 파일은 index.html의 #panelCuration 컨테이너 안으로 주입되는 조각(partial)입니다.
+  단독으로 열면 스타일이 적용되지 않습니다. 반드시 index.html을 통해 보세요.
+  주입 시점: script.js의 loadPanels()가 DOMContentLoaded 직후 한 번만 fetch합니다.
+-->
+<!-- ---- 검색 및 필터 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft p-5">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+          aria-hidden="true">🔎</span>
+    <h2 class="font-semibold text-sm">트렌드 탐색</h2>
+  </div>
+
+  <form id="curationFilterForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="lg:col-span-2">
+      <label for="curationSearch" class="block text-xs text-ink-muted mb-1">검색어</label>
+      <input id="curationSearch" type="search" placeholder="제목으로 검색"
+             class="w-full rounded-xl border border-cream-300 bg-paper px-3 py-2.5 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
+    </div>
+
+    <div>
+      <label for="curationSource" class="block text-xs text-ink-muted mb-1">소스</label>
+      <select id="curationSource"
+              class="w-full rounded-xl border border-cream-300 px-3 py-2.5 text-sm bg-paper
+                     focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
+        <option value="">전체 소스</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="curationDays" class="block text-xs text-ink-muted mb-1">기간</label>
+      <div class="flex gap-2">
+        <select id="curationDays"
+                class="flex-1 rounded-xl border border-cream-300 px-3 py-2.5 text-sm bg-paper
+                       focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
+          <option value="">전체 기간</option>
+          <option value="1">최근 1일</option>
+          <option value="7">최근 7일</option>
+          <option value="30">최근 30일</option>
+        </select>
+        <button type="submit"
+                class="bg-forest-600 hover:bg-forest-700 text-cream-50 text-sm px-4 rounded-xl transition">
+          검색
+        </button>
+      </div>
+    </div>
+  </form>
+</section>
+
+<!-- ---- 트렌드 카드 목록 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+  <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+    <span class="w-8 h-8 rounded-xl bg-cream-100 flex items-center justify-center text-sm"
+          aria-hidden="true">📥</span>
+    <h2 class="font-semibold text-sm">수집된 트렌드</h2>
+    <span id="curationCount" class="text-xs text-ink-faint"></span>
+    <button id="collectBtn"
+            class="ml-auto text-xs bg-cream-100 hover:bg-cream-200 px-3 py-1.5 rounded-xl transition">
+      🛰️ 지금 수집
+    </button>
+  </div>
+
+  <div id="curationTrends" class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+  <div class="px-5 pb-5 text-center">
+    <button id="curationMoreBtn"
+            class="hidden text-xs bg-cream-100 hover:bg-cream-200 px-4 py-2 rounded-xl transition">
+      더 보기
+    </button>
+  </div>
+</section>
+
+<!-- ---- 내 노트 ---- -->
+<section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+  <div class="px-5 py-4 border-b border-cream-200 flex items-center gap-3">
+    <span class="w-8 h-8 rounded-xl bg-forest-50 flex items-center justify-center text-sm"
+          aria-hidden="true">📝</span>
+    <h2 class="font-semibold text-sm">내 노트</h2>
+    <span id="notesCount" class="text-xs text-ink-faint"></span>
+  </div>
+  <ul id="notesList" class="divide-y divide-cream-100"></ul>
+</section>

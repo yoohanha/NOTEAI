@@ -19,10 +19,10 @@
 
 // 노드 종류별 색상 - index.html의 범례와 반드시 같은 색을 씁니다.
 const NODE_COLORS = {
-  topic: '#4f46e5',    // indigo-600
-  note: '#10b981',     // emerald-500
-  trend: '#0ea5e9',    // sky-500
-  keyword: '#f59e0b',  // amber-500
+  topic: '#3D5C4A',    // forest-600
+  note: '#6B8F71',     // sage
+  trend: '#C17F4A',    // warm terracotta
+  keyword: '#C4A35A',  // gold
 };
 
 // 노드 종류별 한국어 라벨 (상세 패널/폴백 표시용)
@@ -35,9 +35,9 @@ const NODE_TYPE_LABELS = {
 
 // 간선 관계별 표시 정보
 const EDGE_STYLES = {
-  relevant: { color: '#94a3b8', label: '관련 문헌', dash: [] },
-  tagged: { color: '#cbd5e1', label: '키워드 포함', dash: [4, 3] },
-  co_occurs: { color: '#fcd34d', label: '함께 등장', dash: [1, 3] },
+  relevant: { color: '#C4B39A', label: '관련 문헌', dash: [] },
+  tagged: { color: '#D9C9B0', label: '키워드 포함', dash: [4, 3] },
+  co_occurs: { color: '#C4A35A', label: '함께 등장', dash: [1, 3] },
 };
 
 // 그래프에서 문헌 노드 라벨을 자르는 길이
@@ -104,7 +104,7 @@ function renderTopicSuggestions(topics) {
 
   if (!topics.length) {
     const empty = document.createElement('span');
-    empty.className = 'text-xs text-slate-400';
+    empty.className = 'text-xs text-ink-faint';
     empty.textContent = '아직 분석할 데이터가 없습니다. 큐레이션 탭에서 트렌드를 수집해 보세요.';
     container.appendChild(empty);
     return;
@@ -116,7 +116,7 @@ function renderTopicSuggestions(topics) {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className =
-      'text-xs bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 ' +
+      'text-xs bg-cream-100 hover:bg-forest-50 hover:text-forest-700 ' +
       'px-2.5 py-1 rounded-full transition';
     chip.textContent = `${item.topic} (${item.doc_count})`;
 
@@ -143,7 +143,7 @@ function renderKeywords(keywords) {
 
   if (!keywords.length) {
     const empty = document.createElement('span');
-    empty.className = 'text-xs text-slate-400';
+    empty.className = 'text-xs text-ink-faint';
     empty.textContent = '추출된 키워드가 없습니다.';
     container.appendChild(empty);
     return;
@@ -154,8 +154,8 @@ function renderKeywords(keywords) {
   keywords.forEach((keyword) => {
     // 상위 키워드는 강조, 나머지는 옅게 - 중요도를 한눈에 보이게 합니다.
     const emphasis = keyword.score >= 0.6
-      ? 'bg-amber-100 text-amber-800 border-amber-200'
-      : 'bg-slate-50 text-slate-600 border-slate-200';
+      ? 'bg-amber-50 text-amber-800 border-amber-200'
+      : 'bg-cream-50 text-ink-muted border-cream-200';
 
     const chip = document.createElement('span');
     chip.className = `text-xs border px-2.5 py-1 rounded-full ${emphasis}`;
@@ -180,7 +180,7 @@ function renderGraphDocuments(documents) {
 
   documents.forEach((doc) => {
     const row = document.createElement('li');
-    row.className = 'px-4 py-3';
+    row.className = 'px-5 py-4 hover:bg-cream-50/80';
 
     const header = document.createElement('div');
     header.className = 'flex items-start gap-2';
@@ -189,8 +189,8 @@ function renderGraphDocuments(documents) {
     const badge = document.createElement('span');
     const isNote = doc.type === 'note';
     badge.className = isNote
-      ? 'text-[11px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded whitespace-nowrap'
-      : 'text-[11px] bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded whitespace-nowrap';
+      ? 'text-[11px] bg-forest-50 text-forest-700 px-1.5 py-0.5 rounded-lg whitespace-nowrap'
+      : 'text-[11px] bg-cream-100 text-ink-muted px-1.5 py-0.5 rounded-lg whitespace-nowrap';
     badge.textContent = isNote ? '📝 노트' : '📰 트렌드';
     header.appendChild(badge);
 
@@ -200,7 +200,7 @@ function renderGraphDocuments(documents) {
       link.href = doc.url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.className = 'text-sm font-medium hover:text-indigo-600 hover:underline';
+      link.className = 'text-sm font-medium hover:text-forest-600 hover:underline';
       link.textContent = doc.title;
       header.appendChild(link);
     } else {
@@ -212,7 +212,7 @@ function renderGraphDocuments(documents) {
 
     // 관련도 점수
     const score = document.createElement('span');
-    score.className = 'ml-auto text-[11px] text-slate-400 whitespace-nowrap';
+    score.className = 'ml-auto text-[11px] text-ink-faint whitespace-nowrap';
     score.textContent = `관련도 ${Math.round(doc.score * 100)}%`;
     header.appendChild(score);
 
@@ -220,13 +220,13 @@ function renderGraphDocuments(documents) {
 
     if (doc.snippet) {
       const snippet = document.createElement('p');
-      snippet.className = 'text-xs text-slate-500 mt-1 line-clamp-2';
+      snippet.className = 'text-xs text-ink-muted mt-1 line-clamp-2';
       snippet.textContent = doc.snippet;
       row.appendChild(snippet);
     }
 
     const meta = document.createElement('p');
-    meta.className = 'text-[11px] text-slate-400 mt-1';
+    meta.className = 'text-[11px] text-ink-faint mt-1';
     meta.textContent = [doc.source_name, formatTime(doc.published_at)]
       .filter(Boolean)
       .join(' · ');
@@ -284,13 +284,13 @@ function buildGraphStyles() {
       style: {
         'label': 'data(label)',
         'font-size': '9px',
-        'font-family': 'system-ui, -apple-system, sans-serif',
-        'color': '#334155',
+        'font-family': 'Pretendard, Inter, system-ui, sans-serif',
+        'color': '#2C2925',
         'text-valign': 'bottom',
         'text-margin-y': 4,
         'text-wrap': 'none',
         'border-width': 2,
-        'border-color': '#ffffff',
+        'border-color': '#FFFEFB',
         // 가중치를 노드 크기로 매핑 - 중요할수록 크게 보입니다.
         'width': 'mapData(weight, 0, 1, 16, 52)',
         'height': 'mapData(weight, 0, 1, 16, 52)',
@@ -300,7 +300,7 @@ function buildGraphStyles() {
       selector: 'node:selected',
       style: {
         'border-width': 3,
-        'border-color': '#1e293b',
+        'border-color': '#2C2925',
       },
     },
     {
@@ -324,7 +324,7 @@ function buildGraphStyles() {
   // 토픽 노드는 중심이므로 라벨을 더 크게
   styles.push({
     selector: 'node[type="topic"]',
-    style: { 'font-size': '13px', 'font-weight': 'bold', 'color': '#312e81' },
+    style: { 'font-size': '13px', 'font-weight': 'bold', 'color': '#2F4A3C' },
   });
 
   // 간선 관계별 색상/점선
@@ -360,7 +360,7 @@ function renderNodeDetail(nodeData) {
   header.appendChild(dot);
 
   const type = document.createElement('span');
-  type.className = 'text-xs text-slate-500';
+  type.className = 'text-xs text-ink-muted';
   type.textContent = NODE_TYPE_LABELS[nodeData.type] || nodeData.type;
   header.appendChild(type);
 
@@ -382,7 +382,7 @@ function renderNodeDetail(nodeData) {
 
   if (details.length) {
     const info = document.createElement('p');
-    info.className = 'text-xs text-slate-500 mt-1';
+    info.className = 'text-xs text-ink-muted mt-1';
     info.textContent = details.join(' · ');
     panel.appendChild(info);
   }
@@ -392,7 +392,7 @@ function renderNodeDetail(nodeData) {
     link.href = meta.url;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.className = 'inline-block mt-2 text-xs text-indigo-600 hover:underline';
+    link.className = 'inline-block mt-2 text-xs text-forest-600 hover:underline';
     link.textContent = '🔗 원문 열기';
     panel.appendChild(link);
   }
@@ -495,7 +495,7 @@ function renderGraphFallback(graph) {
 
   documentNodes.forEach((node) => {
     const row = document.createElement('div');
-    row.className = 'border border-slate-200 rounded-lg px-3 py-2';
+    row.className = 'border border-cream-200 rounded-xl px-3 py-2 bg-cream-50/50';
 
     const title = document.createElement('p');
     title.className = 'font-medium text-sm';
@@ -505,7 +505,7 @@ function renderGraphFallback(graph) {
     const keywords = keywordsByDoc.get(node.id) || [];
 
     const linked = document.createElement('p');
-    linked.className = 'text-xs text-slate-500 mt-0.5';
+    linked.className = 'text-xs text-ink-muted mt-0.5';
     linked.textContent = keywords.length
       ? `연결 키워드: ${keywords.join(', ')}`
       : '연결된 키워드 없음';
@@ -533,7 +533,7 @@ async function loadTopicSuggestions() {
     container.replaceChildren();
 
     const message = document.createElement('span');
-    message.className = 'text-xs text-slate-400';
+    message.className = 'text-xs text-ink-faint';
     message.textContent = '추천 토픽을 불러오지 못했습니다.';
     container.appendChild(message);
   }

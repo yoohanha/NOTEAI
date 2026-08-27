@@ -1,0 +1,44 @@
+# NOTEAI — Render Blueprint
+# 대시보드: https://dashboard.render.com → New → Blueprint
+# 이 파일이 저장소 루트에 있어야 Render가 서비스를 자동 생성합니다.
+#
+# 무료 웹 서비스 참고
+# - 약 15분 미사용 시 슬립합니다. 첫 요청은 깨어나는 데 시간이 걸립니다.
+# - 디스크가 유지되지 않아 SQLite 데이터는 재배포/재시작 시 초기화됩니다.
+# - requirements.txt의 torch/transformers는 무료 플랜 RAM(512MB)에서
+#   설치·기동이 실패할 수 있습니다. 빌드가 메모리 부족으로 죽으면
+#   해당 패키지를  temporarily 제외하고 다시 배포하세요.
+
+services:
+  - type: web
+    name: noteai
+    runtime: python
+    plan: free
+    region: oregon
+
+    # 저장소 전체는 클론되고, 빌드/기동 작업 디렉터리만 backend/ 입니다.
+    # main.py의 FRONTEND_PATH(../frontend)는 그대로 동작합니다.
+    rootDir: backend
+
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+
+      - key: DEBUG
+        value: "false"
+
+      - key: DATABASE_URL
+        value: sqlite:///./noteai.db
+
+      # 매 Blueprint 생성마다 새 시크릿을 발급합니다.
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      - key: JWT_ALGORITHM
+        value: HS256

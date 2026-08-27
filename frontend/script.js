@@ -34,7 +34,7 @@ const VERDICT_STYLES = {
   healthy: 'bg-emerald-100 text-emerald-700',
   degraded: 'bg-amber-100 text-amber-700',
   unhealthy: 'bg-red-100 text-red-700',
-  unknown: 'bg-slate-100 text-slate-600',
+  unknown: 'bg-cream-100 text-ink-muted',
 };
 
 const VERDICT_LABELS = {
@@ -59,11 +59,11 @@ const RUN_STATUS_LABELS = {
 
 // 상단 탭 스타일 (활성/비활성)
 const NAV_ACTIVE_CLASS =
-  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition ' +
-  'border-indigo-600 text-indigo-700';
+  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-3 border-b-2 transition ' +
+  'border-forest-600 text-forest-700';
 const NAV_INACTIVE_CLASS =
-  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-2.5 border-b-2 transition ' +
-  'border-transparent text-slate-500 hover:text-slate-800';
+  'nav-tab whitespace-nowrap text-sm font-medium px-3 py-3 border-b-2 transition ' +
+  'border-transparent text-ink-muted hover:text-ink';
 
 // 탭 id -> {버튼, 패널} 매핑
 const VIEWS = {
@@ -255,10 +255,10 @@ function switchAuthTab(tab) {
   $('signupForm').classList.toggle('hidden', isLogin);
 
   // 탭 버튼 활성화 스타일
-  const activeClass = 'flex-1 text-sm font-medium py-1.5 rounded-md transition ' +
-                      'bg-white text-slate-900 shadow-sm';
-  const inactiveClass = 'flex-1 text-sm font-medium py-1.5 rounded-md transition ' +
-                        'text-slate-500 hover:text-slate-700';
+  const activeClass = 'flex-1 text-sm font-medium py-1.5 rounded-lg transition ' +
+                      'bg-paper text-ink shadow-soft';
+  const inactiveClass = 'flex-1 text-sm font-medium py-1.5 rounded-lg transition ' +
+                        'text-ink-muted hover:text-ink';
 
   $('tabLogin').className = isLogin ? activeClass : inactiveClass;
   $('tabSignup').className = isLogin ? inactiveClass : activeClass;
@@ -471,8 +471,17 @@ function renderRuns(runs) {
     const row = document.createElement('tr');
     const cell = document.createElement('td');
     cell.colSpan = 7;
-    cell.className = 'px-4 py-6 text-center text-sm text-slate-400';
-    cell.textContent = '아직 수집 이력이 없습니다. 워커를 실행하세요.';
+    cell.className = 'px-5 py-10 text-center text-sm text-ink-faint';
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'flex flex-col items-center gap-2';
+    const emptyIcon = document.createElement('span');
+    emptyIcon.className = 'w-12 h-12 rounded-2xl bg-cream-100 flex items-center justify-center text-xl';
+    emptyIcon.setAttribute('aria-hidden', 'true');
+    emptyIcon.textContent = '📭';
+    const emptyText = document.createElement('span');
+    emptyText.textContent = '아직 수집 이력이 없습니다. 워커를 실행하세요.';
+    emptyWrap.append(emptyIcon, emptyText);
+    cell.append(emptyWrap);
     row.append(cell);
     body.append(row);
     return;
@@ -480,16 +489,16 @@ function renderRuns(runs) {
 
   runs.forEach((run) => {
     const row = document.createElement('tr');
-    row.className = 'hover:bg-slate-50';
+    row.className = 'hover:bg-cream-50';
 
     // 시작 시각
     const time = document.createElement('td');
-    time.className = 'px-4 py-2 whitespace-nowrap text-slate-600';
+    time.className = 'px-5 py-2.5 whitespace-nowrap text-ink-muted';
     time.textContent = formatTime(run.started_at);
 
     // 결과 배지
     const statusCell = document.createElement('td');
-    statusCell.className = 'px-4 py-2 whitespace-nowrap';
+    statusCell.className = 'px-5 py-2.5 whitespace-nowrap';
 
     const statusBadge = document.createElement('span');
     statusBadge.className =
@@ -500,7 +509,7 @@ function renderRuns(runs) {
     // 숫자 열
     const makeNum = (value) => {
       const cell = document.createElement('td');
-      cell.className = 'px-4 py-2 text-right tabular-nums text-slate-600';
+      cell.className = 'px-5 py-2.5 text-right tabular-nums text-ink-muted';
       cell.textContent = value;
       return cell;
     };
@@ -512,7 +521,7 @@ function renderRuns(runs) {
 
     // 비고: 사이클 실패 메시지 우선, 없으면 소스별 실패 요약
     const note = document.createElement('td');
-    note.className = 'px-4 py-2 text-xs text-slate-500 max-w-xs truncate';
+    note.className = 'px-5 py-2.5 text-xs text-ink-muted max-w-xs truncate';
 
     if (run.error_message) {
       note.textContent = run.error_message;
@@ -541,25 +550,34 @@ function renderTrends(items) {
 
   if (!items || items.length === 0) {
     const empty = document.createElement('li');
-    empty.className = 'px-4 py-6 text-center text-sm text-slate-400';
-    empty.textContent = '수집된 항목이 없습니다.';
+    empty.className = 'px-5 py-10 text-center text-sm text-ink-faint';
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'flex flex-col items-center gap-2';
+    const emptyIcon = document.createElement('span');
+    emptyIcon.className = 'w-12 h-12 rounded-2xl bg-cream-100 flex items-center justify-center text-xl';
+    emptyIcon.setAttribute('aria-hidden', 'true');
+    emptyIcon.textContent = '📭';
+    const emptyText = document.createElement('span');
+    emptyText.textContent = '수집된 항목이 없습니다.';
+    emptyWrap.append(emptyIcon, emptyText);
+    empty.append(emptyWrap);
     list.append(empty);
     return;
   }
 
   items.forEach((item) => {
     const li = document.createElement('li');
-    li.className = 'px-4 py-3 hover:bg-slate-50';
+    li.className = 'px-5 py-3.5 hover:bg-cream-50';
 
     const link = document.createElement('a');
     link.href = item.url;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.className = 'text-sm font-medium text-indigo-700 hover:underline';
+    link.className = 'text-sm font-medium text-forest-700 hover:underline';
     link.textContent = item.title;
 
     const meta = document.createElement('p');
-    meta.className = 'text-xs text-slate-400 mt-0.5';
+    meta.className = 'text-xs text-ink-faint mt-0.5';
     meta.textContent =
       `${item.source_name || item.source_key} · ${formatTime(item.published_at)}`;
 
@@ -820,4 +838,74 @@ function init() {
   else showLogin();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// ============ 화면 조각(partial) 로딩 ============
+
+/**
+ * 탭별 화면 HTML을 pages/*.html에서 불러와 각 컨테이너에 주입합니다.
+ *
+ * index.html에는 껍데기(헤더 + 탭 + 빈 컨테이너)만 두고 실제 화면은
+ * 파일로 분리해 두었습니다. 화면 하나를 고칠 때 다른 화면의 마크업을
+ * 건드릴 위험이 없어지고, 파일당 길이도 크게 줄어듭니다.
+ *
+ * 세 조각을 병렬로 받아 한 번에 주입한 뒤 init()을 실행합니다.
+ * (initCuration/initGraph가 조각 안의 엘리먼트에 이벤트를 걸기 때문에,
+ *  주입이 끝나기 전에 init()을 호출하면 바인딩이 전부 실패합니다.)
+ *
+ * @returns {Promise<void>} 모든 조각의 주입이 끝나면 resolve
+ * @throws {Error} 조각을 하나라도 불러오지 못하면 예외
+ */
+async function loadPanels() {
+  // 컨테이너 id -> 조각 파일 경로
+  const PANEL_SOURCES = {
+    panelMonitor: 'pages/monitor.html',
+    panelCuration: 'pages/curation.html',
+    panelGraph: 'pages/graph.html',
+  };
+
+  const entries = Object.entries(PANEL_SOURCES);
+
+  // 세 파일을 동시에 요청 - 순차 요청 대비 왕복 시간을 1/3로 줄입니다.
+  const htmlList = await Promise.all(
+    entries.map(async ([, path]) => {
+      const response = await fetch(path, { cache: 'no-cache' });
+
+      if (!response.ok) {
+        throw new Error(`${path} 로드 실패 (HTTP ${response.status})`);
+      }
+
+      return response.text();
+    })
+  );
+
+  entries.forEach(([containerId], index) => {
+    const container = document.getElementById(containerId);
+
+    // 조각은 우리가 작성한 정적 파일이므로 innerHTML 주입이 안전합니다.
+    // (사용자 입력이 섞이는 경로가 아니며, 동적 데이터는 여전히
+    //  textContent로만 렌더링합니다.)
+    if (container) container.innerHTML = htmlList[index];
+  });
+}
+
+/**
+ * 페이지 진입점 - 조각을 먼저 주입한 뒤 기존 초기화를 실행합니다.
+ */
+async function bootstrap() {
+  try {
+    await loadPanels();
+  } catch (error) {
+    // 조각을 못 불러오면 화면이 텅 비므로, 원인을 눈에 보이게 알립니다.
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div class="m-4 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 ' +
+        'text-sm text-red-700" role="alert"></div>'
+    );
+    document.body.firstElementChild.textContent =
+      `화면을 불러오지 못했습니다: ${error.message}`;
+    return;
+  }
+
+  init();
+}
+
+document.addEventListener('DOMContentLoaded', bootstrap);
