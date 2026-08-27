@@ -398,6 +398,16 @@ class TestWorkerBackoff:
         assert worker._shutdown.is_set() is True
 
 
+class TestEmbeddedAutostart:
+    """FastAPI 내장 워커 기동 조건"""
+
+    def test_disabled_by_env(self, monkeypatch):
+        from monitor_worker import _should_autostart_worker
+
+        monkeypatch.setenv("NOTEAI_DISABLE_WORKER", "1")
+        assert _should_autostart_worker() is False
+
+
 # ============ API 통합 테스트 ============
 
 class TestMonitorAPI:

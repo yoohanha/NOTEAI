@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     # 수집 이력 보관 기간 (일). 초과분은 사이클마다 정리
     MONITOR_RETENTION_DAYS: int = 14
 
+    # FastAPI 기동 시 수집 워커를 같은 프로세스에서 함께 띄울지 여부
+    # Render 등 단일 웹 프로세스 환경에서는 True가 필요합니다.
+    # 테스트에서는 NOTEAI_DISABLE_WORKER=1 로 끌 수 있습니다.
+    MONITOR_AUTOSTART: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = True

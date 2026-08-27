@@ -130,6 +130,12 @@ async def startup_event():
     # 데이터베이스 초기화
     init_db()
 
+    # 단일 웹 프로세스(Render 등)에서도 대시보드가 워커를 보도록
+    # 같은 이벤트 루프에서 수집 루프를 띄웁니다.
+    from monitor_worker import start_embedded_worker
+
+    await start_embedded_worker()
+
     print("✅ 애플리케이션 준비 완료")
     print(f"📝 API 문서: http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/docs")
     print(f"🔗 ReDoc: http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/redoc")
@@ -137,7 +143,10 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """애플리케이션 종료 시 실행"""
+    """애플리케이션 종료 시 실행 - 내장 수집 워커를 정리합니다."""
+    from monitor_worker import stop_embedded_worker
+
+    await stop_embedded_worker()
     print("👋 애플리케이션 종료 중...")
 
 

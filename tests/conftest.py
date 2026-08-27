@@ -13,6 +13,10 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 
+# 테스트에서 앱을 올릴 때 외부 RSS를 긁지 않도록 워커를 끕니다.
+# main.py를 import하기 전에 설정해야 startup 훅이 이를 읽습니다.
+os.environ["NOTEAI_DISABLE_WORKER"] = "1"
+
 # backend 디렉토리를 경로에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 

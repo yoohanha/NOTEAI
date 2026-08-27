@@ -42,3 +42,7 @@ services:
 
       - key: JWT_ALGORITHM
         value: HS256
+
+      # 웹 프로세스 기동 시 수집 워커를 함께 띄웁니다.
+      - key: MONITOR_AUTOSTART
+        value: "true"

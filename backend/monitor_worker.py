@@ -26,6 +26,7 @@ NOTEAI 24시간 백그라운드 수집 워커
 import argparse
 import asyncio
 import json
+import os
 import random
 import signal
 import sys
@@ -315,14 +316,19 @@ class CollectorWorker:
 
     # ============ 메인 루프 ============
 
-    async def run(self) -> int:
+    async def run(self, install_signals: bool = True) -> int:
         """
         워커 메인 루프
+
+        Args:
+            install_signals: True면 SIGINT/SIGTERM 핸들러를 등록합니다.
+                FastAPI에 내장될 때는 uvicorn이 시그널을 처리하므로 False.
 
         Returns:
             프로세스 종료 코드 (0 정상)
         """
-        self.install_signal_handlers()
+        if install_signals:
+            self.install_signal_handlers()
 
         logger.info("=" * 62)
         logger.info(
@@ -400,6 +406,96 @@ class CollectorWorker:
         logger.info("=" * 62)
 
         return 0
+
+
+# ============ FastAPI 내장 기동 ============
+
+# 웹 서버와 같은 프로세스에서 돌릴 때의 핸들
+_embedded_worker: Optional[CollectorWorker] = None
+_embedded_task: Optional[asyncio.Task] = None
+
+
+def _should_autostart_worker() -> bool:
+    """
+    내장 워커를 띄울지 결정합니다.
+
+    테스트(pytest)나 명시적 비활성 플래그가 있으면 외부 API를
+    호출하지 않도록 건너뜁니다.
+    """
+    if not settings.MONITOR_AUTOSTART:
+        return False
+
+    if os.environ.get("NOTEAI_DISABLE_WORKER") == "1":
+        return False
+
+    # pytest가 앱을 올리는 동안에는 수집 사이클을 돌리지 않음
+    if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules:
+        return False
+
+    return True
+
+
+async def start_embedded_worker() -> None:
+    """
+    FastAPI 프로세스 안에서 수집 워커를 백그라운드 태스크로 띄웁니다.
+
+    잠금 파일을 잡아 대시보드가 '워커 실행 중'으로 표시하게 하고,
+    기동 직후 첫 수집 사이클을 돌립니다.
+    """
+    global _embedded_worker, _embedded_task
+
+    if not _should_autostart_worker():
+        logger.info("내장 수집 워커를 건너뜁니다 (비활성 또는 테스트 환경)")
+        return
+
+    try:
+        pid = lockfile.acquire()
+    except lockfile.LockError as exc:
+        # 이미 별도 프로세스로 워커가 떠 있으면 API만 제공하면 됨
+        logger.warning("내장 수집 워커를 건너뜁니다: %s", exc)
+        return
+
+    worker = CollectorWorker()
+    _embedded_worker = worker
+    _embedded_task = asyncio.create_task(
+        _run_embedded(worker),
+        name="noteai-collector",
+    )
+    logger.info("내장 수집 워커를 시작했습니다 (PID %d)", pid)
+
+
+async def _run_embedded(worker: CollectorWorker) -> None:
+    """내장 워커 태스크 본체 - 종료 시 잠금을 반드시 회수합니다."""
+    try:
+        await worker.run(install_signals=False)
+    except Exception:
+        logger.critical("내장 수집 워커가 예기치 못하게 중단되었습니다", exc_info=True)
+    finally:
+        lockfile.release()
+
+
+async def stop_embedded_worker() -> None:
+    """내장 워커에 종료를 요청하고 짧게 기다립니다."""
+    global _embedded_worker, _embedded_task
+
+    if _embedded_worker is not None:
+        _embedded_worker.request_shutdown()
+
+    task = _embedded_task
+    _embedded_task = None
+    _embedded_worker = None
+
+    if task is None:
+        lockfile.release()
+        return
+
+    try:
+        await asyncio.wait_for(task, timeout=20)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        task.cancel()
+        logger.warning("내장 수집 워커가 제한 시간 안에 끝나지 않아 취소합니다")
+
+    lockfile.release()
 
 
 # ============ CLI ============
