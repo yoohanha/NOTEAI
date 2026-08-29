@@ -325,6 +325,19 @@ function loadPapers() {
 }
 
 function initPapers() {
+  const input = $('papersQuery');
+  if (input) {
+    input.placeholder = 'Text-to-3D';
+  }
+  const label = document.querySelector('label[for="papersQuery"]');
+  if (label) {
+    label.textContent = '검색어';
+  }
+  const hint = input && input.parentElement && input.parentElement.nextElementSibling;
+  if (hint && hint.tagName === 'P' && /mycode/i.test(hint.textContent || '')) {
+    hint.textContent = '키워드를 그대로 입력하세요. 하이픈과 띄어쓰기도 검색에 포함됩니다.';
+  }
+
   $('papersForm').addEventListener('submit', handlePapersSubmit);
   $('papersChips').addEventListener('click', handlePapersChip);
   $('papersCopyAllBtn').addEventListener('click', () => {
