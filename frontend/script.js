@@ -4,10 +4,10 @@
  * 이 파일이 담당하는 것
  * - 인증(로그인/회원가입) 및 세션 처리
  * - 공용 유틸: apiFetch / $ / setText / formatTime / showError
- * - 상단 탭 라우팅 (📡 수집 모니터 · 📚 노트 큐레이션 · 🕸️ 토픽 지식 그래프)
+ * - 상단 탭 라우팅 (모니터 · 큐레이션 · 지식 그래프 · 논문 검색)
  * - 📡 수집 모니터 화면 렌더링
  *
- * 큐레이션·그래프 화면 로직은 각각 curation.js / graph.js에 있으며,
+ * 큐레이션·그래프·논문 화면 로직은 각각 curation.js / graph.js / papers.js에 있으며,
  * 여기서 정의한 공용 유틸을 그대로 사용합니다.
  *
  * 사용 API
@@ -70,6 +70,7 @@ const VIEWS = {
   monitor: { tab: 'navMonitor', panel: 'panelMonitor' },
   curation: { tab: 'navCuration', panel: 'panelCuration' },
   graph: { tab: 'navGraph', panel: 'panelGraph' },
+  papers: { tab: 'navPapers', panel: 'panelPapers' },
 };
 
 // ============ 상태 ============
@@ -291,7 +292,7 @@ function showDashboard() {
  * 자동 새로고침은 실시간성이 필요한 모니터 탭에서만 동작시켜
  * 다른 탭을 보는 동안 불필요한 폴링이 쌓이지 않게 합니다.
  *
- * @param {'monitor'|'curation'|'graph'} view - 표시할 화면
+ * @param {'monitor'|'curation'|'graph'|'papers'} view - 표시할 화면
  */
 function switchView(view) {
   if (!VIEWS[view]) return;
@@ -333,6 +334,8 @@ function refreshActiveView() {
     loadCuration();
   } else if (activeView === 'graph') {
     loadTopicSuggestions();
+  } else if (activeView === 'papers') {
+    loadPapers();
   }
 }
 
@@ -830,9 +833,10 @@ function init() {
     }
   });
 
-  // 화면별 모듈 초기화 (curation.js / graph.js에서 정의)
+  // 화면별 모듈 초기화 (curation.js / graph.js / papers.js에서 정의)
   initCuration();
   initGraph();
+  initPapers();
 
   if (getToken()) showDashboard();
   else showLogin();
@@ -848,7 +852,7 @@ function init() {
  * 건드릴 위험이 없어지고, 파일당 길이도 크게 줄어듭니다.
  *
  * 세 조각을 병렬로 받아 한 번에 주입한 뒤 init()을 실행합니다.
- * (initCuration/initGraph가 조각 안의 엘리먼트에 이벤트를 걸기 때문에,
+ * (initCuration/initGraph/initPapers가 조각 안의 엘리먼트에 이벤트를 걸기 때문에,
  *  주입이 끝나기 전에 init()을 호출하면 바인딩이 전부 실패합니다.)
  *
  * @returns {Promise<void>} 모든 조각의 주입이 끝나면 resolve
@@ -860,6 +864,7 @@ async function loadPanels() {
     panelMonitor: 'pages/monitor.html',
     panelCuration: 'pages/curation.html',
     panelGraph: 'pages/graph.html',
+    panelPapers: 'pages/papers.html',
   };
 
   const entries = Object.entries(PANEL_SOURCES);

@@ -107,6 +107,12 @@ class Settings(BaseSettings):
     # 테스트에서는 NOTEAI_DISABLE_WORKER=1 로 끌 수 있습니다.
     MONITOR_AUTOSTART: bool = True
 
+    # ============ Papers (arXiv 검색 + LLM 요약) 설정 ============
+    # OpenAI 호환 Chat Completions. 키가 없으면 로컬 추출 요약으로 폴백합니다.
+    LLM_API_KEY: str = ""
+    LLM_API_BASE: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4o-mini"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

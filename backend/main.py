@@ -36,6 +36,7 @@ from features.vault.routes import router as vault_router
 from features.trends.routes import router as trends_router
 from features.monitor.routes import router as monitor_router
 from features.graph.routes import router as graph_router
+from features.papers.routes import router as papers_router
 
 # FastAPI 앱 초기화
 app = FastAPI(
@@ -68,6 +69,7 @@ app.include_router(vault_router, prefix="/api")    # 로컬 노트 스캔/가져
 app.include_router(trends_router, prefix="/api")   # 기술 트렌드 수집
 app.include_router(monitor_router, prefix="/api")  # 백그라운드 수집 모니터링
 app.include_router(graph_router, prefix="/api")    # 토픽 지식 그래프 분석
+app.include_router(papers_router, prefix="/api")   # arXiv 논문 검색
 # 추가 라우터: users, comments, teams, ai
 
 
