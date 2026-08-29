@@ -10,6 +10,7 @@
  * - POST /api/trends/refresh : 지금 수집 실행
  * - POST /api/trends/save    : 트렌드를 노트로 저장
  * - GET  /api/notes          : 내 노트 목록
+ * - DELETE /api/notes/{id}   : 내 노트 삭제 (저장 취소)
  *
  * script.js에 정의된 공용 유틸($, apiFetch, setText, formatTime, showError)을 사용합니다.
  */
@@ -26,6 +27,10 @@ let curationPage = 1;
 let curationFilters = { search: '', source: '', days: '' };
 let curationTotal = 0;
 let sourcesLoaded = false;
+
+// 내 노트 목록 상태 - 삭제 후 서버를 다시 기다리지 않고 화면을 바로 갱신합니다.
+let myNotes = [];
+let notesTotal = 0;
 
 // ============ 유틸 ============
 
@@ -100,6 +105,9 @@ function createTrendCard(item) {
   card.className =
     'border border-cream-200 rounded-2xl p-5 flex flex-col gap-2 bg-cream-50/40 ' +
     'hover:border-forest-200 hover:shadow-soft transition';
+  card.dataset.trendId = String(item.id);
+  if (item.url) card.dataset.trendUrl = item.url;
+  card.dataset.trendTitle = item.title || '';
 
   // ---- 출처 / 발행일 ----
   const metaRow = document.createElement('div');
@@ -160,16 +168,17 @@ function createTrendCard(item) {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
+  saveBtn.dataset.role = 'save-note';
   saveBtn.className =
     'ml-auto text-xs bg-cream-100 hover:bg-cream-200 disabled:bg-forest-50 ' +
     'disabled:text-forest-700 px-3 py-1.5 rounded-xl transition';
+  saveBtn.addEventListener('click', () => handleSaveTrend(item, saveBtn));
 
   if (item.is_saved) {
     saveBtn.textContent = '✅ 저장됨';
     saveBtn.disabled = true;
   } else {
     saveBtn.textContent = '📌 노트로 저장';
-    saveBtn.addEventListener('click', () => handleSaveTrend(item, saveBtn));
   }
 
   actions.appendChild(saveBtn);
@@ -203,10 +212,75 @@ function renderCurationTrends(items, append = false) {
 }
 
 /**
+ * 내 노트 한 줄을 만듭니다.
+ * @param {Object} note - 노트
+ * @returns {HTMLElement} 리스트 아이템
+ */
+function createNoteRow(note) {
+  const row = document.createElement('li');
+  row.className = 'px-5 py-4 hover:bg-cream-50/80';
+  row.dataset.noteId = String(note.id);
+
+  const header = document.createElement('div');
+  header.className = 'flex items-start gap-3';
+
+  const title = document.createElement('p');
+  title.className = 'text-sm font-medium min-w-0 flex-1';
+  title.textContent = note.title || '(제목 없음)';
+  header.appendChild(title);
+
+  const date = document.createElement('span');
+  date.className = 'text-[11px] text-ink-faint whitespace-nowrap mt-0.5';
+  date.textContent = formatTime(note.updated_at || note.created_at);
+  header.appendChild(date);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className =
+    'shrink-0 w-7 h-7 -mr-1 rounded-lg text-ink-faint hover:text-red-600 hover:bg-red-50 ' +
+    'flex items-center justify-center text-base leading-none transition';
+  deleteBtn.setAttribute('aria-label', '노트 삭제');
+  deleteBtn.title = '삭제';
+  deleteBtn.textContent = '×';
+  deleteBtn.addEventListener('click', (event) => {
+    event.preventDefault();
+    handleDeleteNote(note, deleteBtn);
+  });
+  header.appendChild(deleteBtn);
+
+  row.appendChild(header);
+
+  if (note.content) {
+    const preview = document.createElement('p');
+    preview.className = 'text-xs text-ink-muted mt-1 line-clamp-2';
+    preview.textContent = note.content.slice(0, 200);
+    row.appendChild(preview);
+  }
+
+  if ((note.tags && note.tags.length) || note.category) {
+    const tagRow = document.createElement('div');
+    tagRow.className = 'flex flex-wrap gap-1.5 mt-2';
+
+    if (note.category) {
+      const category = document.createElement('span');
+      category.className = 'text-[11px] bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full';
+      category.textContent = note.category;
+      tagRow.appendChild(category);
+    }
+
+    appendTagChips(tagRow, note.tags, 6);
+    row.appendChild(tagRow);
+  }
+
+  return row;
+}
+
+/**
  * 내 노트 목록을 그립니다.
  * @param {Object[]} notes - 노트 배열
  */
 function renderNotes(notes) {
+  myNotes = notes;
   const list = $('notesList');
   list.replaceChildren();
 
@@ -229,52 +303,7 @@ function renderNotes(notes) {
   }
 
   const fragment = document.createDocumentFragment();
-
-  notes.forEach((note) => {
-    const row = document.createElement('li');
-    row.className = 'px-5 py-4 hover:bg-cream-50/80';
-
-    const header = document.createElement('div');
-    header.className = 'flex items-start gap-3';
-
-    const title = document.createElement('p');
-    title.className = 'text-sm font-medium';
-    title.textContent = note.title || '(제목 없음)';
-    header.appendChild(title);
-
-    const date = document.createElement('span');
-    date.className = 'ml-auto text-[11px] text-ink-faint whitespace-nowrap';
-    date.textContent = formatTime(note.updated_at || note.created_at);
-    header.appendChild(date);
-
-    row.appendChild(header);
-
-    // 본문 미리보기 - 마크다운 기호는 그대로 두되 길이만 자릅니다.
-    if (note.content) {
-      const preview = document.createElement('p');
-      preview.className = 'text-xs text-ink-muted mt-1 line-clamp-2';
-      preview.textContent = note.content.slice(0, 200);
-      row.appendChild(preview);
-    }
-
-    if ((note.tags && note.tags.length) || note.category) {
-      const tagRow = document.createElement('div');
-      tagRow.className = 'flex flex-wrap gap-1.5 mt-2';
-
-      if (note.category) {
-        const category = document.createElement('span');
-        category.className = 'text-[11px] bg-forest-50 text-forest-700 px-2 py-0.5 rounded-full';
-        category.textContent = note.category;
-        tagRow.appendChild(category);
-      }
-
-      appendTagChips(tagRow, note.tags, 6);
-      row.appendChild(tagRow);
-    }
-
-    fragment.appendChild(row);
-  });
-
+  notes.forEach((note) => fragment.appendChild(createNoteRow(note)));
   list.appendChild(fragment);
 }
 
@@ -349,8 +378,9 @@ async function loadNotes() {
   try {
     const data = await apiFetch(`/api/notes?page=1&limit=${NOTES_PAGE_SIZE}`);
 
+    notesTotal = data.pagination.total;
     renderNotes(data.notes);
-    setText($('notesCount'), `${data.pagination.total}건`);
+    setText($('notesCount'), `${notesTotal}건`);
   } catch (error) {
     showError(`노트 조회 실패: ${error.message}`);
   }
@@ -411,6 +441,7 @@ async function handleSaveTrend(item, button) {
     });
 
     button.textContent = '✅ 저장됨';
+    button.disabled = true;
 
     // 새로 담은 노트가 바로 보이도록 목록만 갱신
     loadNotes();
@@ -419,6 +450,61 @@ async function handleSaveTrend(item, button) {
     button.textContent = '📌 노트로 저장';
     showError(`노트 저장 실패: ${error.message}`);
   }
+}
+
+/**
+ * 내 노트를 삭제합니다. 성공하면 목록에서 바로 제거합니다.
+ * @param {Object} note - 삭제할 노트
+ * @param {HTMLButtonElement} button - 클릭된 삭제 버튼
+ */
+async function handleDeleteNote(note, button) {
+  const title = note.title || '이 노트';
+  if (!window.confirm(`「${title}」을(를) 삭제할까요?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  showError(null);
+
+  try {
+    await apiFetch(`/api/notes/${note.id}`, { method: 'DELETE' });
+
+    myNotes = myNotes.filter((item) => item.id !== note.id);
+    notesTotal = Math.max(0, notesTotal - 1);
+    renderNotes(myNotes);
+    setText($('notesCount'), `${notesTotal}건`);
+
+    // 같은 트렌드를 다시 저장할 수 있도록 카드 버튼을 되돌립니다.
+    unlockTrendSaveButton(note);
+  } catch (error) {
+    button.disabled = false;
+    showError(`노트 삭제 실패: ${error.message}`);
+  }
+}
+
+/**
+ * 삭제한 노트와 연결된 트렌드 카드의 '저장됨'을 다시 저장 가능하게 바꿉니다.
+ * @param {Object} note - 방금 삭제한 노트
+ */
+function unlockTrendSaveButton(note) {
+  const content = note.content || '';
+  const urlMatch = content.match(/https?:\/\/[^\s)]+/);
+  const noteUrl = urlMatch ? urlMatch[0] : '';
+
+  document.querySelectorAll('#curationTrends article').forEach((card) => {
+    const trendUrl = card.dataset.trendUrl || '';
+    const trendTitle = card.dataset.trendTitle || '';
+    const matchesUrl = noteUrl && trendUrl && trendUrl === noteUrl;
+    const matchesTitle = !noteUrl && trendTitle && trendTitle === (note.title || '');
+
+    if (!matchesUrl && !matchesTitle) return;
+
+    const saveBtn = card.querySelector('[data-role="save-note"]');
+    if (!saveBtn) return;
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '📌 노트로 저장';
+  });
 }
 
 /** "지금 수집" - 외부 소스에서 최신 트렌드를 즉시 수집합니다. */

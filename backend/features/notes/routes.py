@@ -195,6 +195,7 @@ async def delete_note(
 
     return {
         "status": 200,
+        "data": {"id": note_id, "deleted": True},
         "message": "Note deleted successfully",
     }
 

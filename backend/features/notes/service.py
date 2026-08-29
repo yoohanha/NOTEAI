@@ -5,6 +5,8 @@
 - 검색
 """
 
+import re
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from features.notes.models import Note, NoteVersion, AISummary
@@ -12,6 +14,9 @@ from features.notes.schemas import NoteCreate, NoteUpdate
 from features.auth.models import User
 from datetime import datetime
 from typing import List, Optional, Tuple
+
+# 트렌드에서 저장한 노트 본문의 마크다운 링크 (https://...) 를 찾습니다.
+_MARKDOWN_URL_RE = re.compile(r"\((https?://[^\s)]+)\)")
 
 
 class NoteService:
@@ -175,9 +180,33 @@ class NoteService:
             return False
 
         note.deleted_at = datetime.utcnow()
+        # 트렌드에서 담은 노트면 해당 항목을 다시 저장할 수 있게 표시를 해제합니다.
+        NoteService._unmark_related_trends(db, note)
         db.commit()
 
         return True
+
+    @staticmethod
+    def _unmark_related_trends(db: Session, note: Note) -> None:
+        """
+        삭제된 노트와 연결된 트렌드 항목의 is_saved 표시를 해제합니다.
+
+        트렌드 → 노트 저장 시 본문에 원문 URL을 넣으므로, 그 URL로 매칭합니다.
+        URL이 없으면 트렌드에서 저장한 형식(출처 문구)일 때만 제목으로 찾습니다.
+        """
+        from features.trends.models import TrendItem
+
+        urls = _MARKDOWN_URL_RE.findall(note.content or "")
+        query = db.query(TrendItem).filter(TrendItem.is_saved.is_(True))
+
+        if urls:
+            query = query.filter(TrendItem.url.in_(urls))
+        elif "출처:" in (note.content or "") and note.title:
+            query = query.filter(TrendItem.title == note.title)
+        else:
+            return
+
+        query.update({TrendItem.is_saved: False}, synchronize_session=False)
 
     @staticmethod
     def get_user_notes(

@@ -320,6 +320,8 @@ class TestDeleteNote:
         # Then: 200 OK
         assert response.status_code == 200
         assert response.json()["message"] == "Note deleted successfully"
+        assert response.json()["data"]["id"] == test_note.id
+        assert response.json()["data"]["deleted"] is True
 
     def test_delete_others_note_forbidden(
         self, client: TestClient, test_note, test_another_user

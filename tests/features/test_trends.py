@@ -286,6 +286,31 @@ class TestSaveAsNote:
         # 같은 항목을 다시 저장하지 않도록 표시되어야 합니다
         assert trend.is_saved is True
 
+    def test_delete_note_unmarks_trend(self, db, test_user):
+        """노트를 삭제하면 해당 트렌드를 다시 저장할 수 있어야 합니다."""
+        from features.notes.service import note_service
+        from features.trends.models import TrendItem
+
+        trend = TrendItem(
+            title="삭제 연동 트렌드",
+            summary="요약문",
+            url="https://example.com/unsave",
+            url_hash=url_hash("https://example.com/unsave"),
+            source_key="hackernews",
+            source_name="HN",
+            tags=["ai"],
+        )
+        db.add(trend)
+        db.commit()
+        db.refresh(trend)
+
+        note = trend_service.save_as_note(db, trend, test_user)
+        assert trend.is_saved is True
+
+        assert note_service.delete_note(db, note.id, test_user) is True
+        db.refresh(trend)
+        assert trend.is_saved is False
+
 
 # ============ API 통합 테스트 ============
 
