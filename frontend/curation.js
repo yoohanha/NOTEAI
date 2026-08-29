@@ -224,28 +224,30 @@ function createNoteRow(note) {
   const header = document.createElement('div');
   header.className = 'flex items-start gap-3';
 
+  const textCol = document.createElement('div');
+  textCol.className = 'min-w-0 flex-1';
+
   const title = document.createElement('p');
-  title.className = 'text-sm font-medium min-w-0 flex-1';
+  title.className = 'text-sm font-medium leading-snug break-words';
   title.textContent = note.title || '(제목 없음)';
-  header.appendChild(title);
+  textCol.appendChild(title);
 
   const date = document.createElement('span');
-  date.className = 'text-[11px] text-ink-faint whitespace-nowrap mt-0.5';
+  date.className = 'block text-[11px] text-ink-faint mt-1';
   date.textContent = formatTime(note.updated_at || note.created_at);
-  header.appendChild(date);
+  textCol.appendChild(date);
+
+  header.appendChild(textCol);
 
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
+  deleteBtn.dataset.role = 'delete-note';
   deleteBtn.className =
-    'shrink-0 w-7 h-7 -mr-1 rounded-lg text-ink-faint hover:text-red-600 hover:bg-red-50 ' +
-    'flex items-center justify-center text-base leading-none transition';
+    'shrink-0 self-start text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 ' +
+    'border border-red-200 px-2.5 py-1 rounded-lg transition';
   deleteBtn.setAttribute('aria-label', '노트 삭제');
-  deleteBtn.title = '삭제';
-  deleteBtn.textContent = '×';
-  deleteBtn.addEventListener('click', (event) => {
-    event.preventDefault();
-    handleDeleteNote(note, deleteBtn);
-  });
+  deleteBtn.title = '이 노트를 삭제합니다';
+  deleteBtn.textContent = '삭제';
   header.appendChild(deleteBtn);
 
   row.appendChild(header);
@@ -540,4 +542,20 @@ function initCuration() {
   $('curationFilterForm').addEventListener('submit', handleCurationFilter);
   $('curationMoreBtn').addEventListener('click', handleCurationMore);
   $('collectBtn').addEventListener('click', handleCollectNow);
+
+  // 삭제 버튼은 목록을 다시 그릴 때마다 생기므로, 부모에서 한 번만 받습니다.
+  $('notesList').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-role="delete-note"]');
+    if (!button) return;
+
+    const row = button.closest('li[data-note-id]');
+    const noteId = Number(row && row.dataset.noteId);
+    const note = myNotes.find((item) => Number(item.id) === noteId);
+    if (!note) {
+      showError('삭제할 노트를 찾지 못했습니다. 목록을 새로고침해 주세요.');
+      return;
+    }
+
+    handleDeleteNote(note, button);
+  });
 }

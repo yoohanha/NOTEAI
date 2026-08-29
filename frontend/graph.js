@@ -619,41 +619,40 @@ function renderAnalysis(data) {
 
 /**
  * 태그를 붙일 내 노트 ID를 모읍니다.
- * 이번 분석에 노트가 있으면 그것을 쓰고, 없으면 계정에 있는 내 노트를 씁니다.
+ * 큐레이션의 '내 노트'와 같은 API를 먼저 보고, 분석 결과는 보조로 씁니다.
  * @param {Object} analysis - /api/graph/analyze 응답 data
  * @returns {Promise<number[]>}
  */
 async function resolveNoteIdsForTags(analysis) {
-  const fromAnalysis = (analysis.documents || [])
-    .filter((doc) => doc.type === 'note' && Number(doc.ref_id) > 0)
-    .map((doc) => Number(doc.ref_id));
+  const collected = [];
 
-  if (fromAnalysis.length) {
-    return [...new Set(fromAnalysis)];
-  }
-
-  const fromAccount = (analysis.my_note_ids || [])
-    .map((id) => Number(id))
-    .filter((id) => id > 0);
-
-  if (fromAccount.length) {
-    return [...new Set(fromAccount)];
-  }
-
-  // 분석 응답에 ID가 없으면 노트 목록 API로 한 번 더 확인합니다.
   try {
     const data = await apiFetch('/api/notes?page=1&limit=50');
-    return (data.notes || [])
-      .map((note) => Number(note.id))
-      .filter((id) => id > 0);
+    (data.notes || []).forEach((note) => {
+      const id = Number(note.id);
+      if (id > 0) collected.push(id);
+    });
   } catch (error) {
     console.error('내 노트 조회 실패:', error);
-    return [];
   }
+
+  (analysis.my_note_ids || []).forEach((id) => {
+    const noteId = Number(id);
+    if (noteId > 0) collected.push(noteId);
+  });
+
+  (analysis.documents || []).forEach((doc) => {
+    if (doc.type !== 'note') return;
+    const noteId = Number(doc.ref_id);
+    if (noteId > 0) collected.push(noteId);
+  });
+
+  return [...new Set(collected)];
 }
 
 /**
  * 제안된 태그를 내 노트에 적용합니다.
+ * 노트 ID를 프론트에서 못 찾아도 서버가 내 노트 전체를 대상으로 적용합니다.
  */
 async function handleApplyTags() {
   if (!lastAnalysis) return;
@@ -669,18 +668,10 @@ async function handleApplyTags() {
   }
 
   const noteIds = await resolveNoteIdsForTags(lastAnalysis);
-
-  if (!noteIds.length) {
-    resultElement.className = 'mt-3 text-xs text-amber-700';
-    resultElement.textContent =
-      '적용할 내 노트가 없습니다. 큐레이션 탭에서 트렌드를 노트로 담아 보세요.';
-    resultElement.classList.remove('hidden');
-    return;
-  }
-
   const button = $('applyTagsBtn');
   button.disabled = true;
   button.textContent = '적용 중…';
+  resultElement.classList.add('hidden');
 
   try {
     const data = await apiFetch('/api/graph/apply-tags', {
@@ -691,9 +682,21 @@ async function handleApplyTags() {
       }),
     });
 
+    const updated = (data.updated_note_ids || []).length;
+    const applied = (data.applied_tags || []).length;
+
+    if (updated === 0 && noteIds.length === 0) {
+      resultElement.className = 'mt-3 text-xs text-amber-700';
+      resultElement.textContent =
+        '적용할 내 노트가 없습니다. 큐레이션 탭에서 트렌드를 노트로 담아 보세요.';
+      resultElement.classList.remove('hidden');
+      return;
+    }
+
     resultElement.className = 'mt-3 text-xs text-emerald-700';
-    resultElement.textContent =
-      `✅ ${data.updated_note_ids.length}개 노트에 ${data.applied_tags.length}개 태그를 적용했습니다.`;
+    resultElement.textContent = updated
+      ? `✅ ${updated}개 노트에 ${applied}개 태그를 적용했습니다.`
+      : '내 노트를 확인했습니다. 같은 태그가 이미 붙어 있어 추가 변경은 없습니다.';
     resultElement.classList.remove('hidden');
   } catch (error) {
     resultElement.className = 'mt-3 text-xs text-red-600';

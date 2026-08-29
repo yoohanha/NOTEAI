@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pathlib import Path
+from starlette.types import Scope
 import uvicorn
 
 # Core 모듈
@@ -60,6 +61,20 @@ app.add_middleware(
 # 주의: StaticFiles를 "/"에 마운트하면 이후 등록되는 라우트를 가리므로,
 # 모든 API 라우터를 등록한 뒤 파일 맨 아래에서 마운트합니다.
 FRONTEND_PATH = Path(__file__).parent.parent / "frontend"
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """HTML/JS/CSS는 브라우저가 옛 파일을 붙잡지 않도록 캐시를 끕니다."""
+
+    async def get_response(self, path: str, scope: Scope):
+        response = await super().get_response(path, scope)
+        lowered = (path or "").lower()
+        if lowered.endswith((".html", ".js", ".css")) or lowered in ("", "index.html"):
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, must-revalidate, max-age=0"
+            )
+            response.headers["Pragma"] = "no-cache"
+        return response
 
 
 # ============ 라우터 등록 ============
@@ -172,7 +187,7 @@ async def api_root() -> dict:
 if FRONTEND_PATH.exists():
     app.mount(
         "/",
-        StaticFiles(directory=str(FRONTEND_PATH), html=True),
+        NoCacheStaticFiles(directory=str(FRONTEND_PATH), html=True),
         name="static",
     )
 
