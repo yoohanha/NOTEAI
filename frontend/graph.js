@@ -618,22 +618,62 @@ function renderAnalysis(data) {
 }
 
 /**
- * 제안된 태그를 분석에 포함된 내 노트에 적용합니다.
+ * 태그를 붙일 내 노트 ID를 모읍니다.
+ * 이번 분석에 노트가 있으면 그것을 쓰고, 없으면 계정에 있는 내 노트를 씁니다.
+ * @param {Object} analysis - /api/graph/analyze 응답 data
+ * @returns {Promise<number[]>}
+ */
+async function resolveNoteIdsForTags(analysis) {
+  const fromAnalysis = (analysis.documents || [])
+    .filter((doc) => doc.type === 'note' && Number(doc.ref_id) > 0)
+    .map((doc) => Number(doc.ref_id));
+
+  if (fromAnalysis.length) {
+    return [...new Set(fromAnalysis)];
+  }
+
+  const fromAccount = (analysis.my_note_ids || [])
+    .map((id) => Number(id))
+    .filter((id) => id > 0);
+
+  if (fromAccount.length) {
+    return [...new Set(fromAccount)];
+  }
+
+  // 분석 응답에 ID가 없으면 노트 목록 API로 한 번 더 확인합니다.
+  try {
+    const data = await apiFetch('/api/notes?page=1&limit=50');
+    return (data.notes || [])
+      .map((note) => Number(note.id))
+      .filter((id) => id > 0);
+  } catch (error) {
+    console.error('내 노트 조회 실패:', error);
+    return [];
+  }
+}
+
+/**
+ * 제안된 태그를 내 노트에 적용합니다.
  */
 async function handleApplyTags() {
   if (!lastAnalysis) return;
 
   const resultElement = $('applyTagsResult');
+  const tags = lastAnalysis.suggested_tags || [];
 
-  // 태그를 붙일 대상은 "내 노트" 문헌뿐입니다. (트렌드는 노트가 아님)
-  const noteIds = lastAnalysis.documents
-    .filter((doc) => doc.type === 'note')
-    .map((doc) => doc.ref_id);
+  if (!tags.length) {
+    resultElement.className = 'mt-3 text-xs text-amber-700';
+    resultElement.textContent = '적용할 태그 후보가 없습니다. 먼저 토픽 분석을 실행해 주세요.';
+    resultElement.classList.remove('hidden');
+    return;
+  }
+
+  const noteIds = await resolveNoteIdsForTags(lastAnalysis);
 
   if (!noteIds.length) {
     resultElement.className = 'mt-3 text-xs text-amber-700';
     resultElement.textContent =
-      '이번 분석 결과에 내 노트가 없어 적용할 대상이 없습니다. 큐레이션 탭에서 트렌드를 노트로 담아 보세요.';
+      '적용할 내 노트가 없습니다. 큐레이션 탭에서 트렌드를 노트로 담아 보세요.';
     resultElement.classList.remove('hidden');
     return;
   }
@@ -647,7 +687,7 @@ async function handleApplyTags() {
       method: 'POST',
       body: JSON.stringify({
         note_ids: noteIds,
-        tags: lastAnalysis.suggested_tags,
+        tags,
       }),
     });
 

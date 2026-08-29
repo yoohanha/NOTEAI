@@ -376,6 +376,34 @@ class TestGraphService:
 
         assert result["document_count"] == 1
 
+    def test_analyze_includes_owned_notes_without_topic_overlap(
+        self, db: Session, test_user, test_note, seeded_trends
+    ):
+        """토픽 단어가 없어도 내 노트는 분석 결과와 태그 대상에 포함되어야 함"""
+        result = graph_service.analyze(
+            db, topic="transformer", user=test_user, sources=["notes", "trends"]
+        )
+
+        note_docs = [doc for doc in result["documents"] if doc["type"] == "note"]
+        note_ids = {doc["ref_id"] for doc in note_docs}
+
+        assert test_note.id in note_ids
+        assert test_note.id in result["my_note_ids"]
+        assert result["document_count"] >= 3
+
+    def test_apply_tags_empty_ids_uses_owned_notes(
+        self, db: Session, test_user, test_note
+    ):
+        """note_ids가 비어 있으면 내 노트 전체에 태그를 적용해야 함"""
+        result = graph_service.apply_tags(
+            db, user=test_user, note_ids=[], tags=["from-graph"]
+        )
+
+        db.refresh(test_note)
+
+        assert test_note.id in result["updated_note_ids"]
+        assert "from-graph" in test_note.tags
+
     def test_apply_tags_merges_without_overwriting(
         self, db: Session, test_user, test_note
     ):
@@ -512,12 +540,15 @@ class TestGraphAPI:
         # 태그는 소문자로 정규화되어 저장됨
         assert data["applied_tags"] == ["attention", "llm"]
 
-    def test_apply_tags_rejects_empty_list(self, client, auth_headers):
-        """빈 note_ids는 422로 거부되어야 함"""
+    def test_apply_tags_empty_list_applies_to_owned_notes(
+        self, client, auth_headers, test_note
+    ):
+        """빈 note_ids는 내 노트 전체에 태그를 적용해야 함"""
         response = client.post(
             "/api/graph/apply-tags",
             json={"note_ids": [], "tags": ["ai"]},
             headers=auth_headers,
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 200
+        assert test_note.id in response.json()["data"]["updated_note_ids"]

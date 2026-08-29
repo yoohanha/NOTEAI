@@ -95,10 +95,9 @@ class ApplyTagsRequest(BaseModel):
     """
 
     note_ids: List[int] = Field(
-        ...,
-        min_length=1,
+        default_factory=list,
         max_length=50,
-        description="태그를 적용할 노트 ID 목록",
+        description="태그를 적용할 노트 ID 목록. 비우면 내 노트 전체에 적용합니다.",
     )
     tags: List[str] = Field(
         ...,
@@ -216,6 +215,10 @@ class AnalyzeResponse(BaseModel):
     documents: List[DocumentItem] = Field(default_factory=list)
     graph: GraphPayload = Field(default_factory=GraphPayload)
     analyzed_at: datetime
+    my_note_ids: List[int] = Field(
+        default_factory=list,
+        description="태그 적용에 쓸 수 있는 내 노트 ID",
+    )
 
 
 class TopicSuggestion(BaseModel):

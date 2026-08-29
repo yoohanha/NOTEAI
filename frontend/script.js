@@ -913,10 +913,10 @@ async function init() {
 async function loadPanels() {
   // 컨테이너 id -> 조각 파일 경로
   const PANEL_SOURCES = {
-    panelMonitor: 'pages/monitor.html?v=20260829e',
-    panelCuration: 'pages/curation.html?v=20260829e',
-    panelGraph: 'pages/graph.html?v=20260829e',
-    panelPapers: 'pages/papers.html?v=20260829e',
+    panelMonitor: 'pages/monitor.html?v=20260829g',
+    panelCuration: 'pages/curation.html?v=20260829g',
+    panelGraph: 'pages/graph.html?v=20260829g',
+    panelPapers: 'pages/papers.html?v=20260829g',
   };
 
   const entries = Object.entries(PANEL_SOURCES);

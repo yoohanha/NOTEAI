@@ -58,15 +58,59 @@ class GraphService:
         return [column.ilike(f"%{token}%") for token in topic_tokens]
 
     @staticmethod
+    def _note_to_source(note: Note, is_own: bool) -> SourceDocument:
+        """노트 ORM 객체를 분석기 입력 형식으로 변환합니다."""
+        return SourceDocument(
+            id=f"note:{note.id}",
+            doc_type="note",
+            title=note.title or "",
+            body=note.content or "",
+            tags=list(note.tags or []),
+            meta={
+                "ref_id": note.id,
+                "category": note.category,
+                "url": None,
+                "source_name": "내 노트",
+                "published_at": note.created_at,
+                "is_own": is_own,
+            },
+        )
+
+    @staticmethod
+    def list_owned_note_ids(
+        db: Session,
+        user: User,
+        limit: int = 50,
+    ) -> List[int]:
+        """
+        현재 사용자가 삭제하지 않은 노트 ID를 최신순으로 반환합니다.
+
+        태그 적용 대상과 분석 응답의 my_note_ids에 사용합니다.
+        """
+        rows = (
+            db.query(Note.id)
+            .filter(
+                Note.user_id == user.id,
+                Note.deleted_at.is_(None),
+            )
+            .order_by(Note.updated_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [row[0] for row in rows]
+
+    @staticmethod
     def collect_notes(
         db: Session,
         user: User,
         topic_tokens: Sequence[str],
     ) -> List[SourceDocument]:
         """
-        토픽과 관련 있을 법한 노트를 수집합니다.
+        분석에 넣을 노트를 수집합니다.
 
-        본인 노트와 공개 노트만 대상으로 하며, 삭제된 노트는 제외합니다.
+        내 노트는 토픽 단어가 없어도 항상 가져옵니다.
+        (큐레이션에서 담은 노트가 그래프/태그 적용에서 빠지지 않게 하기 위함)
+        다른 사람의 공개 노트만 토픽 LIKE로 좁힙니다.
 
         Args:
             db: 데이터베이스 세션
@@ -76,11 +120,21 @@ class GraphService:
         Returns:
             SourceDocument 목록
         """
-        query = db.query(Note).filter(Note.deleted_at.is_(None))
+        owned_rows = (
+            db.query(Note)
+            .filter(
+                Note.deleted_at.is_(None),
+                Note.user_id == user.id,
+            )
+            .order_by(Note.updated_at.desc())
+            .limit(CANDIDATE_LIMIT)
+            .all()
+        )
 
-        # 접근 권한: 내 노트이거나 공개 노트
-        query = query.filter(
-            or_(Note.user_id == user.id, Note.is_public.is_(True))
+        public_query = db.query(Note).filter(
+            Note.deleted_at.is_(None),
+            Note.is_public.is_(True),
+            Note.user_id != user.id,
         )
 
         # 제목/본문/태그 어디든 토픽 토큰이 있으면 후보로 채택
@@ -90,27 +144,21 @@ class GraphService:
                 conditions.extend(
                     GraphService._build_like_filters(column, topic_tokens)
                 )
-            query = query.filter(or_(*conditions))
+            public_query = public_query.filter(or_(*conditions))
 
-        rows = query.order_by(Note.updated_at.desc()).limit(CANDIDATE_LIMIT).all()
+        public_rows = (
+            public_query.order_by(Note.updated_at.desc())
+            .limit(CANDIDATE_LIMIT)
+            .all()
+        )
 
-        return [
-            SourceDocument(
-                id=f"note:{note.id}",
-                doc_type="note",
-                title=note.title or "",
-                body=note.content or "",
-                tags=list(note.tags or []),
-                meta={
-                    "ref_id": note.id,
-                    "category": note.category,
-                    "url": None,
-                    "source_name": "내 노트",
-                    "published_at": note.created_at,
-                },
-            )
-            for note in rows
+        documents = [
+            GraphService._note_to_source(note, is_own=True) for note in owned_rows
         ]
+        documents.extend(
+            GraphService._note_to_source(note, is_own=False) for note in public_rows
+        )
+        return documents
 
     @staticmethod
     def collect_trends(
@@ -331,6 +379,46 @@ class GraphService:
 
         return {"nodes": nodes, "edges": edges}
 
+    @staticmethod
+    def _merge_owned_notes_into_scored(
+        scored: List[ScoredDocument],
+        candidates: Sequence[SourceDocument],
+        limit: int,
+    ) -> List[ScoredDocument]:
+        """
+        토픽 단어가 없어 점수가 0인 내 노트도 결과에서 빠지지 않게 붙입니다.
+
+        관련 문헌을 우선하되, 문헌 상한의 절반(최소 3건)까지 내 노트를 확보합니다.
+        """
+        scored_ids = {item.source.id for item in scored}
+        extras: List[ScoredDocument] = []
+
+        for document in candidates:
+            if document.doc_type != "note" or not document.meta.get("is_own"):
+                continue
+            if document.id in scored_ids:
+                continue
+            extras.append(
+                ScoredDocument(
+                    source=document,
+                    score=0.01,
+                    tokens=analyzer.build_weighted_tokens(document),
+                    matched=[],
+                )
+            )
+
+        notes = [item for item in scored if item.source.doc_type == "note"]
+        others = [item for item in scored if item.source.doc_type != "note"]
+        notes.extend(extras)
+
+        if not notes:
+            return scored[:limit]
+
+        note_slots = min(len(notes), max(3, limit // 2), limit)
+        kept_notes = notes[:note_slots]
+        remaining = limit - len(kept_notes)
+        return kept_notes + others[:remaining]
+
     # ============ 분석 진입점 ============
 
     @staticmethod
@@ -358,9 +446,13 @@ class GraphService:
             관련 문헌이 하나도 없으면 document_count=0인 빈 결과를 반환합니다.
         """
         candidates = GraphService.collect_documents(db, topic, user, sources)
+        my_note_ids = GraphService.list_owned_note_ids(db, user)
 
-        # 관련도 점수 계산 후 상한만큼만 사용
-        scored = analyzer.score_documents(topic, candidates)[:limit]
+        # 관련도 점수 계산 후, 매칭되지 않은 내 노트도 상한 안에서 포함
+        scored = analyzer.score_documents(topic, candidates)
+        scored = GraphService._merge_owned_notes_into_scored(
+            scored, candidates, limit
+        )
 
         if not scored:
             return {
@@ -372,6 +464,7 @@ class GraphService:
                 "documents": [],
                 "graph": {"nodes": [], "edges": []},
                 "analyzed_at": datetime.utcnow(),
+                "my_note_ids": my_note_ids,
             }
 
         # 토픽 자신은 키워드 목록에서 제외 (모든 문헌에 있으므로 정보량이 없음)
@@ -412,6 +505,7 @@ class GraphService:
             "documents": documents,
             "graph": graph,
             "analyzed_at": datetime.utcnow(),
+            "my_note_ids": my_note_ids,
         }
 
     # ============ 추천 토픽 ============
@@ -481,6 +575,17 @@ class GraphService:
             {"updated_note_ids", "skipped_note_ids", "applied_tags"}
         """
         requested = list(dict.fromkeys(note_ids))
+
+        # 대상 ID가 비어 있으면 현재 사용자의 노트 전체에 적용합니다.
+        if not requested:
+            requested = GraphService.list_owned_note_ids(db, user)
+
+        if not requested:
+            return {
+                "updated_note_ids": [],
+                "skipped_note_ids": [],
+                "applied_tags": list(tags),
+            }
 
         notes = (
             db.query(Note)
