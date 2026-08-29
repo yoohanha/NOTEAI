@@ -7,7 +7,7 @@ Atom XML 파싱과 `/mycode (검색어)` 형식, 엔드포인트 계약을 검�
 
 import pytest
 
-from features.papers.client import ArxivFetchError, parse_arxiv_feed
+from features.papers.client import ArxivFetchError, build_arxiv_search_query, parse_arxiv_feed
 from features.papers.llm import build_paper_context, generate_insight
 from features.papers.schemas import PaperItem
 from features.papers.service import PaperQueryError, extract_topic
@@ -71,6 +71,13 @@ class TestExtractTopic:
     def test_plain_query_passthrough(self):
         assert extract_topic("Text-to-3D") == "Text-to-3D"
 
+    def test_keeps_hyphen_and_spaces(self):
+        assert extract_topic("/mycode (text-to-3d)") == "text-to-3d"
+        assert extract_topic("/mycode (Gaussian Splatting)") == "Gaussian Splatting"
+
+    def test_keeps_inner_parentheses(self):
+        assert extract_topic("/mycode (CLIP (vision))") == "CLIP vision"
+
     def test_rejects_empty(self):
         with pytest.raises(PaperQueryError):
             extract_topic("   ")
@@ -82,6 +89,62 @@ class TestExtractTopic:
     def test_rejects_empty_parentheses(self):
         with pytest.raises(PaperQueryError):
             extract_topic("/mycode ()")
+
+
+class TestArxivQuery:
+    """하이픈/공백 검색어가 arXiv ANDNOT으로 깨지지 않는지"""
+
+    def test_hyphenated_term_is_quoted_phrase(self):
+        query = build_arxiv_search_query("Text-to-3D")
+        assert 'all:"Text-to-3D"' in query
+        assert "all:Text-to-3D" not in query.replace('all:"Text-to-3D"', "")
+
+    def test_spaced_phrase_is_quoted(self):
+        query = build_arxiv_search_query("Gaussian Splatting")
+        assert 'all:"Gaussian Splatting"' in query
+        assert "AND" in query
+
+    def test_single_word_still_works(self):
+        query = build_arxiv_search_query("llm")
+        assert 'all:"llm"' in query
+
+    @pytest.mark.asyncio
+    async def test_httpx_receives_params_not_prebuilt_url(self, monkeypatch):
+        captured = {}
+
+        class DummyResponse:
+            text = ARXIV_SAMPLE
+
+            def raise_for_status(self):
+                return None
+
+        class DummyClient:
+            def __init__(self, **_kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def get(self, url, params=None, headers=None):
+                captured["url"] = url
+                captured["params"] = params
+                return DummyResponse()
+
+        monkeypatch.setattr(
+            "features.papers.client.httpx.AsyncClient",
+            DummyClient,
+        )
+
+        from features.papers.client import search_arxiv
+
+        papers = await search_arxiv("Text-to-3D", limit=5)
+        assert captured["params"]["search_query"] == build_arxiv_search_query("Text-to-3D")
+        assert captured["params"]["max_results"] == 5
+        assert "Text-to-3D" in captured["params"]["search_query"]
+        assert papers[0].title.startswith("DreamFusion")
 
 
 # ============ Atom 파싱 ============

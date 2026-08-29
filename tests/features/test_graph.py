@@ -147,6 +147,16 @@ class TestTokenizer:
         assert "gpt-4" in tokens
         assert "c++" in tokens
 
+    def test_tokenize_hyphenated_and_3d(self):
+        """text-to-3d 는 복합 토큰과 3d 조각이 함께 남아야 함"""
+        tokens = analyzer.tokenize("Text-to-3D Gaussian Splatting")
+
+        assert "text-to-3d" in tokens
+        assert "text" in tokens
+        assert "3d" in tokens
+        assert "gaussian" in tokens
+        assert "splatting" in tokens
+
 
 class TestScoring:
     """토픽 관련도 점수"""

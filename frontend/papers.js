@@ -11,8 +11,8 @@
  * script.js에 정의된 공용 유틸($, apiFetch, setText, showError)을 사용합니다.
  */
 
-// 예: /mycode (Text-to-3D)
-const PAPERS_COMMAND_RE = /^\s*\/mycode\s*\(\s*(.+?)\s*\)\s*$/i;
+// 예: /mycode (Text-to-3D) — 하이픈·공백·내부 괄호를 허용 (마지막 ')' 기준)
+const PAPERS_COMMAND_RE = /^\s*\/mycode\s*\(\s*(.+)\s*\)\s*$/i;
 
 // 마지막 검색 — 새로고침 버튼에서 재실행
 let lastPapersRequest = null;
@@ -63,7 +63,7 @@ function normalizePapersCommand(raw) {
 
   const match = text.match(PAPERS_COMMAND_RE);
   if (match) {
-    const topic = match[1].replace(/\s+/g, ' ').trim();
+    const topic = normalizeSearchTerm(match[1]);
     if (!topic) {
       throw new Error('괄호 안에 검색어가 없습니다. 예: /mycode (Text-to-3D)');
     }
@@ -74,7 +74,16 @@ function normalizePapersCommand(raw) {
     throw new Error('명령 형식이 올바르지 않습니다. /mycode (검색어) 형태로 입력하세요.');
   }
 
-  return `/mycode (${text.replace(/\s+/g, ' ')})`;
+  return `/mycode (${normalizeSearchTerm(text)})`;
+}
+
+/**
+ * 검색어의 공백만 정리하고 하이픈(-)은 그대로 둡니다.
+ * @param {string} raw
+ * @returns {string}
+ */
+function normalizeSearchTerm(raw) {
+  return (raw || '').replace(/\s+/g, ' ').trim();
 }
 
 /**

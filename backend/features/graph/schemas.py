@@ -63,8 +63,8 @@ class AnalyzeRequest(BaseModel):
     @field_validator("topic")
     @classmethod
     def validate_topic(cls, value: str) -> str:
-        """공백만 입력된 토픽을 거부하고 양끝 공백을 정리합니다."""
-        stripped = value.strip()
+        """공백만 입력된 토픽을 거부하고, 하이픈은 유지한 채 공백만 정리합니다."""
+        stripped = " ".join((value or "").split())
 
         if not stripped:
             raise ValueError("토픽을 입력해 주세요")

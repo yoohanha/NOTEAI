@@ -9,7 +9,6 @@ arXiv 공식 API 클라이언트
 
 import re
 from typing import List
-from urllib.parse import quote_plus, urlencode
 from xml.etree.ElementTree import Element
 
 import httpx
@@ -33,10 +32,68 @@ _ARXIV_API = "http://export.arxiv.org/api/query"
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ID_RE = re.compile(r"arxiv\.org/abs/([^\s/]+)", re.IGNORECASE)
+_HYPHEN_SPLIT_RE = re.compile(r"[\s\-_/]+")
+_ARXIV_OPERATORS = {"and", "or", "andnot", "not"}
+# 구문 검색 AND 절에서 빠져도 의미가 거의 없는 짧은 영어 단어
+_ARXIV_SKIP_AND = _ARXIV_OPERATORS | {
+    "a", "an", "the", "to", "of", "in", "on", "for", "and", "or",
+}
 
 
 class ArxivFetchError(Exception):
     """arXiv API 호출 또는 파싱 실패"""
+
+
+def sanitize_search_term(query: str) -> str:
+    """
+    검색어에서 arXiv 쿼리를 깨는 문자만 걷어냅니다.
+
+    하이픈과 공백, 한글/영문/숫자는 그대로 둡니다.
+    큰따옴표와 콜론은 필드 연산자 주입을 막기 위해 공백으로 바꿉니다.
+    """
+    text = _WHITESPACE_RE.sub(" ", (query or "")).strip()
+    text = text.replace('"', " ").replace(":", " ")
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def build_arxiv_search_query(query: str) -> str:
+    """
+    하이픈/공백이 있는 검색어를 arXiv 문법에 맞게 조합합니다.
+
+    arXiv(Lucene)는 따옴표 없는 `text-to-3d`의 `-`를 ANDNOT으로 읽습니다.
+    그래서 원문을 구문 검색으로 넣고, 하이픈을 공백으로 바꾼 구문과
+    토큰 AND를 OR로 묶습니다.
+
+    Args:
+        query: 정규화된 검색어 (예: Text-to-3D, Gaussian Splatting)
+
+    Returns:
+        search_query 파라미터 값
+    """
+    cleaned = sanitize_search_term(query)
+    if not cleaned:
+        return 'all:""'
+
+    clauses = [f'all:"{cleaned}"']
+
+    if "-" in cleaned:
+        spaced = _WHITESPACE_RE.sub(" ", cleaned.replace("-", " ")).strip()
+        if spaced and spaced != cleaned:
+            clauses.append(f'all:"{spaced}"')
+
+    tokens = [
+        token
+        for token in _HYPHEN_SPLIT_RE.split(cleaned)
+        if token and token.lower() not in _ARXIV_SKIP_AND
+    ]
+    unique_tokens = list(dict.fromkeys(tokens))
+    if len(unique_tokens) >= 2:
+        and_parts = " AND ".join(f"all:{token}" for token in unique_tokens)
+        clauses.append(f"({and_parts})")
+    elif len(unique_tokens) == 1 and unique_tokens[0] != cleaned:
+        clauses.append(f"all:{unique_tokens[0]}")
+
+    return " OR ".join(clauses)
 
 
 def _text(node: Element, path: str) -> str:
@@ -162,13 +219,12 @@ async def search_arxiv(query: str, limit: int = 8) -> List[PaperItem]:
         ArxivFetchError: 네트워크/HTTP/파싱 실패
     """
     params = {
-        "search_query": f'all:"{query}"',
+        "search_query": build_arxiv_search_query(query),
         "start": 0,
         "max_results": limit,
         "sortBy": "relevance",
         "sortOrder": "descending",
     }
-    url = f"{_ARXIV_API}?{urlencode(params, quote_via=quote_plus)}"
     headers = {
         "User-Agent": settings.TRENDS_USER_AGENT,
         "Accept": "application/atom+xml, application/xml, text/xml",
@@ -176,8 +232,9 @@ async def search_arxiv(query: str, limit: int = 8) -> List[PaperItem]:
     timeout = settings.TRENDS_TIMEOUT_SECONDS
 
     try:
+        # params를 넘기면 httpx가 공백·따옴표·하이픈을 한 번만 URL 인코딩합니다.
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            response = await client.get(url, headers=headers)
+            response = await client.get(_ARXIV_API, params=params, headers=headers)
             response.raise_for_status()
     except httpx.TimeoutException as exc:
         raise ArxivFetchError("arXiv API 응답이 시간 초과되었습니다.") from exc

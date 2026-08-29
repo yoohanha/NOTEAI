@@ -543,7 +543,7 @@ async function loadTopicSuggestions() {
  * 입력된 토픽으로 분석을 실행하고 결과를 그립니다.
  */
 async function runAnalysis() {
-  const topic = $('graphTopic').value.trim();
+  const topic = $('graphTopic').value.replace(/\s+/g, ' ').trim();
 
   // ---- 클라이언트 입력 검증 ----
   if (!topic) {

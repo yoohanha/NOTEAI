@@ -23,10 +23,18 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 # ============ 상수 ============
 
 # 토큰 패턴
-# - 영문/기술용어: 첫 글자는 알파벳, 이후 영숫자와 + # . _ - 허용 (예: c++, .net, gpt-4)
-# - 한글: 2글자 이상 (1글자 한글은 대부분 조사/의존명사라 노이즈)
-# - 숫자: 4자리 이상만 (연도 등 의미 있는 값만 남김)
-TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9+#._\-]*|[가-힣]{2,}|\d{4,}")
+# - 영문/기술용어: 첫 글자는 알파벳, 이후 영숫자와 + # . _ - 허용
+#   (예: c++, gpt-4, text-to-3d)
+# - 숫자+문자: 3d, 2d 처럼 하이픈 검색에서 자주 나오는 항
+# - 한글: 2글자 이상
+# - 숫자: 4자리 이상만 (연도 등)
+TOKEN_PATTERN = re.compile(
+    r"[A-Za-z][A-Za-z0-9+#._\-]*"
+    r"|\d+[A-Za-z][A-Za-z0-9+\-]*"
+    r"|[가-힣]{2,}"
+    r"|\d{4,}"
+)
+COMPOUND_SPLIT_PATTERN = re.compile(r"[-_/]+")
 
 # 문장 분리 패턴 - 종결 부호 뒤 공백 또는 줄바꿈
 SENTENCE_PATTERN = re.compile(r"(?<=[.!?。？！])\s+|\n{1,}")
@@ -262,6 +270,13 @@ def tokenize(text: str) -> List[str]:
 
         if normalized:
             tokens.append(normalized)
+
+        # text-to-3d → text, 3d 도 남겨 공백 표기와 매칭되게 합니다.
+        if COMPOUND_SPLIT_PATTERN.search(raw):
+            for part in COMPOUND_SPLIT_PATTERN.split(raw):
+                piece = normalize_token(part)
+                if piece:
+                    tokens.append(piece)
 
     return tokens
 

@@ -11,11 +11,13 @@ from features.papers.client import search_arxiv
 from features.papers.llm import generate_insight
 from features.papers.schemas import SearchPapersResponse
 
-# 예: /mycode (Text-to-3D)
+# 예: /mycode (Text-to-3D)  — 하이픈·공백·괄호를 포함한 검색어
+# 탐욕 매칭으로 마지막 ')' 까지 잡아 CLIP (vision) 같은 내부 괄호도 허용합니다.
 _COMMAND_RE = re.compile(
-    r"^\s*/mycode\s*\(\s*(.+?)\s*\)\s*$",
+    r"^\s*/mycode\s*\(\s*(.+)\s*\)\s*$",
     re.IGNORECASE | re.DOTALL,
 )
+_TOPIC_KEEP_RE = re.compile(r"[^\w\s.+#\-]", re.UNICODE)
 
 
 class PaperQueryError(ValueError):
@@ -48,7 +50,7 @@ def extract_topic(raw: str) -> str:
 
     match = _COMMAND_RE.fullmatch(text)
     if match:
-        topic = " ".join(match.group(1).split())
+        topic = _normalize_topic(match.group(1))
         if not topic:
             raise PaperQueryError(
                 "괄호 안에 검색어가 없습니다. 예: /mycode (Text-to-3D)"
@@ -60,6 +62,21 @@ def extract_topic(raw: str) -> str:
             "명령 형식이 올바르지 않습니다. /mycode (검색어) 형태로 입력하세요."
         )
 
+    topic = _normalize_topic(text)
+    if not topic:
+        raise PaperQueryError(
+            "검색어가 비어 있습니다. /mycode (검색어) 형식으로 입력하세요."
+        )
+    return topic
+
+
+def _normalize_topic(raw: str) -> str:
+    """
+    검색어의 공백을 정리하고, 하이픈(-)은 그대로 남깁니다.
+    """
+    text = " ".join((raw or "").split())
+    # 제어문자만 제거하고 하이픈·점·샵은 유지
+    text = _TOPIC_KEEP_RE.sub(" ", text)
     return " ".join(text.split())
 
 
