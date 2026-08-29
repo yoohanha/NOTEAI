@@ -1,26 +1,20 @@
 /**
  * 📄 학술 논문 검색 화면
  *
- * 사용자가 `/mycode (검색어)` 형식으로 명령을 내면 arXiv API로
- * 논문을 실시간 검색하고, 초록을 LLM 컨텍스트에 넣어 요약·추천을 보여 줍니다.
+ * 일반 검색어로 arXiv를 조회하고, 초록 요약과 참고문헌 형식을 보여 줍니다.
  *
  * 사용 API
- * - GET  /api/search-papers?q=...
  * - POST /api/search-papers  { query, limit, question }
  *
  * script.js에 정의된 공용 유틸($, apiFetch, setText, showError)을 사용합니다.
  */
 
-// 예: /mycode (Text-to-3D) — 하이픈·공백·내부 괄호를 허용 (마지막 ')' 기준)
+// 예전 접두사가 남아 있으면 괄호 안만 꺼냅니다.
 const PAPERS_COMMAND_RE = /^\s*\/mycode\s*\(\s*(.+)\s*\)\s*$/i;
 
-// 마지막 검색 — 새로고침 버튼에서 재실행
 let lastPapersRequest = null;
+let lastBibliographyText = '';
 
-/**
- * 화면 상태를 idle / loading / result / empty 중 하나만 보이게 합니다.
- * @param {'idle'|'loading'|'result'|'empty'} state
- */
 function setPapersState(state) {
   $('papersIdle').classList.toggle('hidden', state !== 'idle');
   $('papersLoading').classList.toggle('hidden', state !== 'loading');
@@ -28,10 +22,6 @@ function setPapersState(state) {
   $('papersEmpty').classList.toggle('hidden', state !== 'empty');
 }
 
-/**
- * 논문 검색 전용 오류 메시지를 표시합니다.
- * @param {string|null} message
- */
 function showPapersError(message) {
   const el = $('papersError');
   if (!el) return;
@@ -44,53 +34,53 @@ function showPapersError(message) {
   el.textContent = message;
 }
 
+function showCopyHint(message) {
+  const hint = $('papersCopyHint');
+  if (!hint) return;
+  hint.textContent = message;
+  hint.classList.remove('hidden');
+  window.setTimeout(() => {
+    if (hint.textContent === message) hint.classList.add('hidden');
+  }, 1800);
+}
+
 /**
- * 입력을 `/mycode (검색어)` 정규 형식으로 맞춥니다.
- *
- * - 이미 올바른 명령이면 공백만 정리합니다.
- * - `/mycode`로 시작했지만 괄호가 없으면 오류입니다.
- * - 일반 검색어만 있으면 자동으로 감쌉니다.
- *
+ * 입력에서 실제 검색어만 남깁니다. 하이픈과 공백은 유지합니다.
  * @param {string} raw
  * @returns {string}
  */
-function normalizePapersCommand(raw) {
+function normalizePapersQuery(raw) {
   const text = (raw || '').trim();
 
   if (!text) {
-    throw new Error('검색어를 입력하세요. 예: /mycode (Text-to-3D)');
+    throw new Error('검색어를 입력하세요. 예: text-to-3d');
   }
 
   const match = text.match(PAPERS_COMMAND_RE);
   if (match) {
     const topic = normalizeSearchTerm(match[1]);
     if (!topic) {
-      throw new Error('괄호 안에 검색어가 없습니다. 예: /mycode (Text-to-3D)');
+      throw new Error('검색어를 입력하세요. 예: text-to-3d');
     }
-    return `/mycode (${topic})`;
+    return topic;
   }
 
   if (text.toLowerCase().startsWith('/mycode')) {
-    throw new Error('명령 형식이 올바르지 않습니다. /mycode (검색어) 형태로 입력하세요.');
+    const rest = text.slice(7).replace(/^\s*\(|\)\s*$/g, '').trim();
+    const topic = normalizeSearchTerm(rest);
+    if (!topic) {
+      throw new Error('검색어를 입력하세요. 예: text-to-3d');
+    }
+    return topic;
   }
 
-  return `/mycode (${normalizeSearchTerm(text)})`;
+  return normalizeSearchTerm(text);
 }
 
-/**
- * 검색어의 공백만 정리하고 하이픈(-)은 그대로 둡니다.
- * @param {string} raw
- * @returns {string}
- */
 function normalizeSearchTerm(raw) {
   return (raw || '').replace(/\s+/g, ' ').trim();
 }
 
-/**
- * 저자 목록을 짧게 표시합니다.
- * @param {string[]} authors
- * @returns {string}
- */
 function formatAuthors(authors) {
   if (!authors || !authors.length) return '저자 미상';
   if (authors.length <= 3) return authors.join(', ');
@@ -98,7 +88,44 @@ function formatAuthors(authors) {
 }
 
 /**
- * 논문 카드 한 장을 만듭니다. 제목·초록은 textContent만 사용합니다.
+ * 클립보드에 참고문헌 텍스트를 복사합니다.
+ * @param {string} text
+ * @param {string} [okMessage]
+ */
+async function copyCitationText(text, okMessage) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      document.body.removeChild(area);
+    }
+    showCopyHint(okMessage || '참고문헌을 복사했습니다.');
+  } catch (_error) {
+    showCopyHint('복사에 실패했습니다. 텍스트를 직접 선택해 주세요.');
+  }
+}
+
+function createCopyButton(label, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className =
+    'text-xs bg-cream-100 hover:bg-cream-200 text-ink px-3 py-1.5 rounded-xl transition';
+  button.textContent = label;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+/**
+ * 논문 카드 한 장을 만듭니다.
  * @param {Object} paper
  * @param {number} index
  * @returns {HTMLElement}
@@ -162,17 +189,59 @@ function createPaperCard(paper, index) {
     actions.appendChild(abs);
   }
 
-  card.append(header, meta, abstract, actions);
+  const citationWrap = document.createElement('div');
+  citationWrap.className = 'mt-4 pt-3 border-t border-cream-200';
+
+  const citationLabel = document.createElement('p');
+  citationLabel.className = 'text-[11px] text-ink-faint mb-1';
+  citationLabel.textContent = '참고문헌';
+
+  const citation = document.createElement('p');
+  citation.className = 'text-xs text-ink leading-relaxed';
+  citation.textContent = paper.citation || '';
+
+  const citationActions = document.createElement('div');
+  citationActions.className = 'mt-2';
+  citationActions.appendChild(
+    createCopyButton('인용 복사', () => {
+      copyCitationText(paper.citation, '이 논문 참고문헌을 복사했습니다.');
+    })
+  );
+
+  citationWrap.append(citationLabel, citation, citationActions);
+  card.append(header, meta, abstract, actions, citationWrap);
   return card;
 }
 
-/**
- * 검색 결과를 화면에 그립니다.
- * @param {Object} data - SearchPapersResponse
- */
+function renderBibliography(lines) {
+  const list = $('papersBibList');
+  list.replaceChildren();
+  lastBibliographyText = (lines || []).filter(Boolean).join('\n');
+
+  if (!lastBibliographyText) {
+    const empty = document.createElement('li');
+    empty.className = 'text-ink-faint';
+    empty.textContent = '표시할 참고문헌이 없습니다.';
+    list.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  lines.forEach((line) => {
+    const item = document.createElement('li');
+    item.className = 'pl-1';
+    item.textContent = line;
+    fragment.appendChild(item);
+  });
+  list.appendChild(fragment);
+}
+
 function renderPapersResult(data) {
   const papers = data.papers || [];
   const insight = data.insight;
+  const bibliography = data.bibliography && data.bibliography.length
+    ? data.bibliography
+    : papers.map((paper) => paper.citation).filter(Boolean);
 
   if (!papers.length) {
     setPapersState('empty');
@@ -185,6 +254,7 @@ function renderPapersResult(data) {
   setText($('papersProvider'), provider);
   setText($('papersAnswer'), insight?.answer || '요약을 생성하지 못했습니다.');
   setText($('papersCount'), `'${data.query}' ${data.total}편`);
+  renderBibliography(bibliography);
 
   const list = $('papersList');
   list.replaceChildren();
@@ -195,10 +265,6 @@ function renderPapersResult(data) {
   list.appendChild(fragment);
 }
 
-/**
- * POST /api/search-papers 를 호출합니다.
- * @param {{query: string, limit: number, question?: string}} payload
- */
 async function runPapersSearch(payload) {
   showPapersError(null);
   showError(null);
@@ -222,16 +288,12 @@ async function runPapersSearch(payload) {
   }
 }
 
-/**
- * 폼 제출을 처리합니다.
- * @param {Event} event
- */
 function handlePapersSubmit(event) {
   event.preventDefault();
 
   let query;
   try {
-    query = normalizePapersCommand($('papersQuery').value);
+    query = normalizePapersQuery($('papersQuery').value);
   } catch (error) {
     showPapersError(error.message);
     return;
@@ -249,10 +311,6 @@ function handlePapersSubmit(event) {
   });
 }
 
-/**
- * 빠른 검색 칩을 누르면 입력을 채우고 바로 검색합니다.
- * @param {Event} event
- */
 function handlePapersChip(event) {
   const button = event.target.closest('[data-query]');
   if (!button) return;
@@ -260,19 +318,16 @@ function handlePapersChip(event) {
   $('papersForm').requestSubmit();
 }
 
-/**
- * 새로고침 버튼에서 마지막 검색을 다시 실행합니다.
- */
 function loadPapers() {
   if (lastPapersRequest) {
     runPapersSearch(lastPapersRequest);
   }
 }
 
-/**
- * 논문 검색 화면의 이벤트를 바인딩합니다. (script.js의 init에서 호출)
- */
 function initPapers() {
   $('papersForm').addEventListener('submit', handlePapersSubmit);
   $('papersChips').addEventListener('click', handlePapersChip);
+  $('papersCopyAllBtn').addEventListener('click', () => {
+    copyCitationText(lastBibliographyText, '참고문헌 전체를 복사했습니다.');
+  });
 }

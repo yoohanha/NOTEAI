@@ -7,7 +7,12 @@ Atom XML 파싱과 `/mycode (검색어)` 형식, 엔드포인트 계약을 검�
 
 import pytest
 
-from features.papers.client import ArxivFetchError, build_arxiv_search_query, parse_arxiv_feed
+from features.papers.client import (
+    ArxivFetchError,
+    build_arxiv_search_query,
+    format_bibliography_line,
+    parse_arxiv_feed,
+)
 from features.papers.llm import build_paper_context, generate_insight
 from features.papers.schemas import PaperItem
 from features.papers.service import PaperQueryError, extract_topic
@@ -28,6 +33,7 @@ ARXIV_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
     <link href="http://arxiv.org/abs/2209.14988v1" rel="alternate" type="text/html"/>
     <link title="pdf" href="http://arxiv.org/pdf/2209.14988v1.pdf" rel="related" type="application/pdf"/>
     <arxiv:primary_category term="cs.CV"/>
+    <arxiv:journal_ref>NeurIPS 2022</arxiv:journal_ref>
     <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
   </entry>
   <entry>
@@ -60,7 +66,7 @@ SAMPLE_PAPERS = [
 
 
 class TestExtractTopic:
-    """`/mycode (검색어)` 형식"""
+    """일반 검색어 및 예전 접두사 호환"""
 
     def test_parses_command(self):
         assert extract_topic("/mycode (Text-to-3D)") == "Text-to-3D"
@@ -72,8 +78,11 @@ class TestExtractTopic:
         assert extract_topic("Text-to-3D") == "Text-to-3D"
 
     def test_keeps_hyphen_and_spaces(self):
-        assert extract_topic("/mycode (text-to-3d)") == "text-to-3d"
-        assert extract_topic("/mycode (Gaussian Splatting)") == "Gaussian Splatting"
+        assert extract_topic("text-to-3d") == "text-to-3d"
+        assert extract_topic("Gaussian Splatting") == "Gaussian Splatting"
+
+    def test_unwraps_prefix_without_parentheses(self):
+        assert extract_topic("/mycode Text-to-3D") == "Text-to-3D"
 
     def test_keeps_inner_parentheses(self):
         assert extract_topic("/mycode (CLIP (vision))") == "CLIP vision"
@@ -81,10 +90,6 @@ class TestExtractTopic:
     def test_rejects_empty(self):
         with pytest.raises(PaperQueryError):
             extract_topic("   ")
-
-    def test_rejects_malformed_command(self):
-        with pytest.raises(PaperQueryError):
-            extract_topic("/mycode Text-to-3D")
 
     def test_rejects_empty_parentheses(self):
         with pytest.raises(PaperQueryError):
@@ -164,6 +169,16 @@ class TestParseArxivFeed:
         assert first.pdf_url.endswith(".pdf")
         assert "2209.14988" in first.arxiv_id
         assert first.abs_url.endswith("2209.14988v1")
+        assert first.journal == "NeurIPS 2022"
+        assert first.year == 2022
+        assert first.citation.startswith("1. Ben Poole, Ajay Jain.")
+        assert "arXiv:2209.14988." in first.citation
+        assert "NeurIPS 2022, 2022" in first.citation
+
+    def test_bibliography_line_format(self):
+        papers = parse_arxiv_feed(ARXIV_SAMPLE)
+        line = format_bibliography_line(1, papers[0])
+        assert line == papers[0].citation
 
     def test_builds_pdf_when_link_missing(self):
         papers = parse_arxiv_feed(ARXIV_SAMPLE)
@@ -246,6 +261,9 @@ class TestSearchPapersApi:
         assert paper["abstract"]
         assert paper["authors"]
         assert paper["pdf_url"]
+        assert paper["citation"]
+        assert "arXiv:" in paper["citation"]
+        assert data["bibliography"]
         assert data["insight"]["provider"] == "local"
 
     def test_post_with_question(self, client, auth_headers, stub_arxiv):
@@ -264,11 +282,20 @@ class TestSearchPapersApi:
         assert data["insight"]["answer"]
         assert "논문 초록 컨텍스트" in data["insight"]["prompt"]
 
-    def test_malformed_command_returns_400(self, client, auth_headers, stub_arxiv):
+    def test_post_plain_keyword(self, client, auth_headers, stub_arxiv):
         response = client.post(
             "/api/search-papers",
-            json={"query": "/mycode Text-to-3D"},
+            json={"query": "text-to-3d", "limit": 5},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["query"] == "text-to-3d"
+
+    def test_empty_command_returns_400(self, client, auth_headers, stub_arxiv):
+        response = client.post(
+            "/api/search-papers",
+            json={"query": "/mycode ()"},
             headers=auth_headers,
         )
         assert response.status_code == 400
-        assert "형식" in response.json()["detail"]
+        assert "검색어" in response.json()["detail"]

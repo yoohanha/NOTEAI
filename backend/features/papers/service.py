@@ -1,18 +1,17 @@
 """
 논문 검색 비즈니스 로직
-- /mycode (검색어) 형식 검증
+- 일반 검색어 및 (하위 호환) /mycode (검색어) 파싱
 - arXiv 검색 + (선택) 초록 기반 인사이트
 """
 
 import re
 from typing import Optional
 
-from features.papers.client import search_arxiv
+from features.papers.client import attach_citations, search_arxiv
 from features.papers.llm import generate_insight
 from features.papers.schemas import SearchPapersResponse
 
-# 예: /mycode (Text-to-3D)  — 하이픈·공백·괄호를 포함한 검색어
-# 탐욕 매칭으로 마지막 ')' 까지 잡아 CLIP (vision) 같은 내부 괄호도 허용합니다.
+# 예전 UI가 쓰던 접두사. 지금은 선택이며, 있으면 괄호 안만 꺼냅니다.
 _COMMAND_RE = re.compile(
     r"^\s*/mycode\s*\(\s*(.+)\s*\)\s*$",
     re.IGNORECASE | re.DOTALL,
@@ -21,16 +20,15 @@ _TOPIC_KEEP_RE = re.compile(r"[^\w\s.+#\-]", re.UNICODE)
 
 
 class PaperQueryError(ValueError):
-    """검색 명령 형식이 올바르지 않음"""
+    """검색어가 비어 있음"""
 
 
 def extract_topic(raw: str) -> str:
     """
     사용자 입력에서 실제 검색어를 꺼냅니다.
 
-    권장 형식은 `/mycode (Text-to-3D)` 입니다.
-    `/mycode`로 시작했는데 괄호 형식이 아니면 시스템 오류로 처리합니다.
-    일반 검색어만 온 경우에는 API 호환을 위해 그대로 사용합니다.
+    일반 키워드(text-to-3d)를 그대로 쓰고,
+    예전 `/mycode (검색어)` 형식도 괄호 안만 추출합니다.
 
     Args:
         raw: 원문 검색어
@@ -39,34 +37,30 @@ def extract_topic(raw: str) -> str:
         정규화된 토픽 문자열
 
     Raises:
-        PaperQueryError: 비었거나 /mycode 형식이 잘못된 경우
+        PaperQueryError: 검색어가 비어 있는 경우
     """
     text = (raw or "").strip()
 
     if not text:
-        raise PaperQueryError(
-            "검색어가 비어 있습니다. /mycode (검색어) 형식으로 입력하세요."
-        )
+        raise PaperQueryError("검색어를 입력하세요. 예: text-to-3d")
 
     match = _COMMAND_RE.fullmatch(text)
     if match:
         topic = _normalize_topic(match.group(1))
         if not topic:
-            raise PaperQueryError(
-                "괄호 안에 검색어가 없습니다. 예: /mycode (Text-to-3D)"
-            )
+            raise PaperQueryError("검색어를 입력하세요. 예: text-to-3d")
         return topic
 
     if text.lower().startswith("/mycode"):
-        raise PaperQueryError(
-            "명령 형식이 올바르지 않습니다. /mycode (검색어) 형태로 입력하세요."
-        )
+        rest = text[7:].strip().strip("()")
+        topic = _normalize_topic(rest)
+        if not topic:
+            raise PaperQueryError("검색어를 입력하세요. 예: text-to-3d")
+        return topic
 
     topic = _normalize_topic(text)
     if not topic:
-        raise PaperQueryError(
-            "검색어가 비어 있습니다. /mycode (검색어) 형식으로 입력하세요."
-        )
+        raise PaperQueryError("검색어를 입력하세요. 예: text-to-3d")
     return topic
 
 
@@ -103,7 +97,8 @@ class PaperService:
             SearchPapersResponse
         """
         topic = extract_topic(raw_query)
-        papers = await search_arxiv(topic, limit=limit)
+        papers = attach_citations(await search_arxiv(topic, limit=limit))
+        bibliography = [paper.citation for paper in papers if paper.citation]
 
         insight = None
         if with_insight and papers:
@@ -114,6 +109,7 @@ class PaperService:
             raw_query=raw_query.strip(),
             total=len(papers),
             papers=papers,
+            bibliography=bibliography,
             insight=insight,
         )
 

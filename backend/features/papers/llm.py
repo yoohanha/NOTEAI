@@ -35,6 +35,7 @@ def build_paper_context(papers: List[PaperItem]) -> str:
         blocks.append(
             f"[{index}] Title: {paper.title}\n"
             f"Authors: {authors}\n"
+            f"Citation: {paper.citation or paper.title}\n"
             f"PDF: {paper.pdf_url}\n"
             f"Abstract: {paper.abstract}"
         )
@@ -45,7 +46,7 @@ def build_paper_context(papers: List[PaperItem]) -> str:
 def build_user_prompt(query: str, question: str, context: str) -> str:
     """검색어·질문·초록 컨텍스트를 하나의 사용자 메시지로 묶습니다."""
     return (
-        f"검색 명령: /mycode ({query})\n"
+        f"검색어: {query}\n"
         f"사용자 질문: {question}\n\n"
         f"--- 논문 초록 컨텍스트 ---\n{context}\n--- 끝 ---"
     )

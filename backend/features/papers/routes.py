@@ -1,8 +1,8 @@
 """
 논문 검색 API
 
-- GET  /api/search-papers?q=/mycode (Text-to-3D)
-- POST /api/search-papers  { "query": "/mycode (Gaussian Splatting)", "question": "..." }
+- GET  /api/search-papers?q=text-to-3d
+- POST /api/search-papers  { "query": "Gaussian Splatting", "question": "..." }
 """
 
 from typing import Optional
@@ -53,7 +53,7 @@ async def _run_search(
 
 @router.get("/search-papers")
 async def search_papers_get(
-    q: str = Query(..., min_length=1, max_length=200, description="검색어 또는 /mycode (검색어)"),
+    q: str = Query(..., min_length=1, max_length=200, description="검색어 (예: text-to-3d)"),
     limit: int = Query(8, ge=1, le=25),
     question: Optional[str] = Query(None, max_length=500),
     current_user: User = Depends(get_current_user),
@@ -62,7 +62,7 @@ async def search_papers_get(
     arXiv에서 논문을 실시간 검색합니다. (GET)
 
     요청 예시:
-        GET /api/search-papers?q=/mycode%20(Text-to-3D)&limit=8
+        GET /api/search-papers?q=text-to-3d&limit=8
 
     응답 data.papers[].title / abstract / authors / pdf_url
     """
@@ -79,7 +79,7 @@ async def search_papers_post(
 
     요청 예시:
         {
-            "query": "/mycode (Text-to-3D)",
+            "query": "text-to-3d",
             "limit": 8,
             "question": "먼저 읽으면 좋은 논문을 추천해 줘"
         }

@@ -18,6 +18,9 @@ class PaperItem(BaseModel):
     abs_url: str = Field(..., description="초록 페이지 링크")
     published_at: Optional[str] = Field(None, description="공개일 (ISO)")
     categories: List[str] = Field(default_factory=list, description="arXiv 분류")
+    journal: Optional[str] = Field(None, description="저널/학회명 (없으면 arXiv preprint)")
+    year: Optional[int] = Field(None, description="발행 연도")
+    citation: str = Field("", description="번호 포함 참고문헌 한 줄")
 
 
 class SearchPapersRequest(BaseModel):
@@ -27,7 +30,7 @@ class SearchPapersRequest(BaseModel):
         ...,
         min_length=1,
         max_length=200,
-        description='검색어. 권장 형식: /mycode (Text-to-3D)',
+        description="검색어 (예: text-to-3d)",
     )
     limit: int = Field(8, ge=1, le=25, description="최대 결과 수")
     question: Optional[str] = Field(
@@ -39,7 +42,7 @@ class SearchPapersRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "query": "/mycode (Text-to-3D)",
+                "query": "text-to-3d",
                 "limit": 8,
                 "question": "이 분야에서 가장 중요한 논문을 추천해 줘",
             }
@@ -62,4 +65,8 @@ class SearchPapersResponse(BaseModel):
     raw_query: str = Field(..., description="사용자가 보낸 원문")
     total: int = Field(0, description="반환된 논문 수")
     papers: List[PaperItem] = Field(default_factory=list)
+    bibliography: List[str] = Field(
+        default_factory=list,
+        description="번호 매긴 참고문헌 목록",
+    )
     insight: Optional[PaperInsight] = None

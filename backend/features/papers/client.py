@@ -8,7 +8,7 @@ arXiv 공식 API 클라이언트
 """
 
 import re
-from typing import List
+from typing import List, Optional
 from xml.etree.ElementTree import Element
 
 import httpx
@@ -32,6 +32,8 @@ _ARXIV_API = "http://export.arxiv.org/api/query"
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ID_RE = re.compile(r"arxiv\.org/abs/([^\s/]+)", re.IGNORECASE)
+_VERSION_RE = re.compile(r"v\d+$", re.IGNORECASE)
+_YEAR_RE = re.compile(r"^(\d{4})")
 _HYPHEN_SPLIT_RE = re.compile(r"[\s\-_/]+")
 _ARXIV_OPERATORS = {"and", "or", "andnot", "not"}
 # 구문 검색 AND 절에서 빠져도 의미가 거의 없는 짧은 영어 단어
@@ -96,6 +98,55 @@ def build_arxiv_search_query(query: str) -> str:
     return " OR ".join(clauses)
 
 
+def canonical_arxiv_id(arxiv_id: str) -> str:
+    """버전 접미사(v1)를 떼고 인용용 arXiv ID만 남깁니다."""
+    return _VERSION_RE.sub("", (arxiv_id or "").strip())
+
+
+def paper_year(published_at: Optional[str]) -> Optional[int]:
+    """ISO 공개일에서 연도를 꺼냅니다."""
+    if not published_at:
+        return None
+    match = _YEAR_RE.match(published_at.strip())
+    return int(match.group(1)) if match else None
+
+
+def format_author_names(authors: List[str]) -> str:
+    """인용용 저자 표기. 4명 이상이면 첫 저자 et al. 입니다."""
+    names = [name.strip() for name in authors if name and name.strip()]
+    if not names:
+        return "Unknown"
+    if len(names) == 1:
+        return names[0]
+    if len(names) <= 3:
+        return ", ".join(names)
+    return f"{names[0]} et al."
+
+
+def format_bibliography_line(index: int, paper: PaperItem) -> str:
+    """
+    학술 참고문헌 한 줄을 만듭니다.
+
+    예: 1. Ben Poole, Ajay Jain. DreamFusion. arXiv preprint, 2022; arXiv:2209.14988.
+    """
+    authors = format_author_names(paper.authors)
+    title = (paper.title or "(제목 없음)").rstrip(".")
+    year = paper.year or paper_year(paper.published_at) or "n.d."
+    venue = (paper.journal or "").strip() or "arXiv preprint"
+    aid = canonical_arxiv_id(paper.arxiv_id)
+    return f"{index}. {authors}. {title}. {venue}, {year}; arXiv:{aid}."
+
+
+def attach_citations(papers: List[PaperItem]) -> List[PaperItem]:
+    """검색 결과 순서대로 번호가 붙은 citation 필드를 채웁니다."""
+    cited: List[PaperItem] = []
+    for index, paper in enumerate(papers, start=1):
+        year = paper.year or paper_year(paper.published_at)
+        line = format_bibliography_line(index, paper)
+        cited.append(paper.model_copy(update={"year": year, "citation": line}))
+    return cited
+
+
 def _text(node: Element, path: str) -> str:
     """Atom 자식 노드의 텍스트를 공백 정규화해 반환합니다."""
     child = node.find(f"{_ATOM}{path}")
@@ -141,6 +192,14 @@ def _pdf_and_abs(entry: Element, arxiv_id: str) -> tuple:
     return pdf_url, abs_url
 
 
+def _arxiv_field(entry: Element, tag: str) -> str:
+    """arXiv 확장 네임스페이스 자식 텍스트를 반환합니다."""
+    child = entry.find(f"{_ARXIV}{tag}")
+    if child is None or child.text is None:
+        return ""
+    return _WHITESPACE_RE.sub(" ", child.text).strip()
+
+
 def _arxiv_id(entry: Element) -> str:
     raw_id = _text(entry, "id")
     match = _ID_RE.search(raw_id)
@@ -179,29 +238,31 @@ def parse_arxiv_feed(xml_text: str) -> List[PaperItem]:
 
         pdf_url, abs_url = _pdf_and_abs(entry, arxiv_id)
         published = _text(entry, "published")
+        journal = _arxiv_field(entry, "journal_ref")
+        year = paper_year(published)
         categories = [
             (cat.get("term") or "").strip()
             for cat in entry.findall(f"{_ARXIV}primary_category")
             + entry.findall(f"{_ATOM}category")
             if (cat.get("term") or "").strip()
         ]
-        # 중복 분류 제거 (순서 유지)
         unique_cats = list(dict.fromkeys(categories))
 
-        papers.append(
-            PaperItem(
-                arxiv_id=arxiv_id,
-                title=title,
-                abstract=abstract,
-                authors=_authors(entry),
-                pdf_url=pdf_url,
-                abs_url=abs_url,
-                published_at=published or None,
-                categories=unique_cats,
-            )
+        paper = PaperItem(
+            arxiv_id=arxiv_id,
+            title=title,
+            abstract=abstract,
+            authors=_authors(entry),
+            pdf_url=pdf_url,
+            abs_url=abs_url,
+            published_at=published or None,
+            categories=unique_cats,
+            journal=journal or None,
+            year=year,
         )
+        papers.append(paper)
 
-    return papers
+    return attach_citations(papers)
 
 
 async def search_arxiv(query: str, limit: int = 8) -> List[PaperItem]:
