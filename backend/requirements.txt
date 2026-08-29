@@ -8,6 +8,7 @@ python-multipart==0.0.6
 
 # 데이터베이스 및 ORM
 sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
 alembic==1.13.0
 
 # 인증 및 보안

@@ -3,7 +3,7 @@
 - 회원가입, 로그인, 토큰 응답
 """
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 from typing import Optional
 
@@ -22,12 +22,30 @@ class UserCreate(UserBase):
 
     password: str = Field(..., min_length=8)
 
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        username = (value or "").strip().lower()
+        if len(username) < 3:
+            raise ValueError("사용자명은 3자 이상이어야 합니다.")
+        return username
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return str(value).strip().lower()
+
 
 class UserLogin(BaseModel):
     """로그인 요청"""
 
-    username: str
+    username: str = Field(..., min_length=1, description="사용자명 또는 이메일")
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def strip_username(cls, value: str) -> str:
+        return (value or "").strip()
 
 
 class UserUpdate(BaseModel):

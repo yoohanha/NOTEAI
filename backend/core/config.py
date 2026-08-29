@@ -22,13 +22,17 @@ class Settings(BaseSettings):
     SERVER_PORT: int = 8000
 
     # 데이터베이스
+    # SQLite 상대 경로는 backend/data/ 아래로 고정됩니다.
+    # 프로덕션에서는 PostgreSQL URL을 쓰세요.
+    # 예: postgresql://user:password@localhost/noteai
     DATABASE_URL: str = "sqlite:///./noteai.db"
-    # 프로덕션: postgresql://user:password@localhost/noteai
+    # SQLite 파일을 둘 디렉터리 (상대 경로면 backend/ 기준)
+    DATA_DIR: str = "./data"
 
     # JWT 설정
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 24 * 60  # 24시간
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 7 * 24 * 60  # 7일 (재접속 시 세션 유지)
 
     # 보안
     BCRYPT_ROUNDS: int = 12

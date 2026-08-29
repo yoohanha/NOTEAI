@@ -4,10 +4,9 @@
 #
 # 무료 웹 서비스 참고
 # - 약 15분 미사용 시 슬립합니다. 첫 요청은 깨어나는 데 시간이 걸립니다.
-# - 디스크가 유지되지 않아 SQLite 데이터는 재배포/재시작 시 초기화됩니다.
-# - requirements.txt의 torch/transformers는 무료 플랜 RAM(512MB)에서
-#   설치·기동이 실패할 수 있습니다. 빌드가 메모리 부족으로 죽으면
-#   해당 패키지를  temporarily 제외하고 다시 배포하세요.
+# - 무료 플랜 디스크는 유지되지 않습니다. SQLite면 재시작 후 계정이 사라집니다.
+#   회원가입을 유지하려면 Render Postgres를 만들고 DATABASE_URL을 덮어쓰세요.
+# - JWT_SECRET_KEY는 최초 생성 값을 유지해야 기존 로그인이 유효합니다.
 
 services:
   - type: web

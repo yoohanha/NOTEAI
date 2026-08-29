@@ -96,6 +96,49 @@ const $ = (id) => document.getElementById(id);
 const getToken = () => localStorage.getItem(TOKEN_KEY);
 
 /**
+ * 로그인/가입 성공 시 JWT를 브라우저에 저장합니다.
+ * @param {string} token
+ */
+function saveSession(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+}
+
+/**
+ * 저장된 세션을 지웁니다.
+ */
+function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * 중복 가입 응답인지 확인합니다.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isDuplicateAccountError(error) {
+  return Boolean(error && error.message && error.message.includes('이미 가입된 계정'));
+}
+
+/**
+ * 저장된 JWT가 아직 유효한지 서버에 물어 세션을 복원합니다.
+ * 토큰만 있고 DB에 사용자가 없으면 로그인 화면으로 보냅니다.
+ */
+async function restoreSession() {
+  if (!getToken()) {
+    showLogin();
+    return;
+  }
+
+  try {
+    await apiFetch('/api/auth/me');
+    showDashboard();
+  } catch (_error) {
+    clearSession();
+    showLogin();
+  }
+}
+
+/**
  * XSS를 막기 위해 텍스트로만 삽입합니다.
  * @param {HTMLElement} el - 대상 엘리먼트
  * @param {string} text - 삽입할 텍스트
@@ -121,9 +164,10 @@ async function apiFetch(path, options = {}) {
     },
   });
 
-  // 토큰이 만료되면 로그인 화면으로 되돌림
-  if (response.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
+  // 로그인/회원가입의 401은 "비밀번호 오류"이지 세션 만료가 아닙니다.
+  const isPublicAuth = path === '/api/auth/login' || path === '/api/auth/register';
+  if (response.status === 401 && !isPublicAuth) {
+    clearSession();
     showLogin();
     throw new Error('세션이 만료되었습니다. 다시 로그인하세요.');
   }
@@ -667,7 +711,7 @@ async function handleLogin(event) {
       body: JSON.stringify({ username, password }),
     });
 
-    localStorage.setItem(TOKEN_KEY, data.access_token);
+    saveSession(data.access_token);
     $('password').value = '';
     showDashboard();
   } catch (error) {
@@ -726,12 +770,21 @@ async function handleSignup(event) {
       body: JSON.stringify(payload),
     });
 
-    localStorage.setItem(TOKEN_KEY, data.access_token);
+    saveSession(data.access_token);
 
     // 비밀번호가 DOM에 남지 않도록 폼 초기화
     $('signupForm').reset();
     showDashboard();
   } catch (error) {
+    // 이미 있는 계정이면 로그인 화면으로 보냅니다.
+    if (isDuplicateAccountError(error)) {
+      switchAuthTab('login');
+      $('username').value = username;
+      setText($('loginError'), error.message);
+      $('loginError').classList.remove('hidden');
+      return;
+    }
+
     setText(errorEl, error.message);
     errorEl.classList.remove('hidden');
   } finally {
@@ -792,8 +845,8 @@ async function handleDiagnose() {
   }
 }
 
-/** 페이지 초기화 - 토큰이 있으면 바로 대시보드를 엽니다. */
-function init() {
+/** 페이지 초기화 - 저장된 JWT를 검증한 뒤에만 대시보드를 엽니다. */
+async function init() {
   $('loginForm').addEventListener('submit', handleLogin);
   $('signupForm').addEventListener('submit', handleSignup);
   $('refreshBtn').addEventListener('click', refreshActiveView);
@@ -811,7 +864,7 @@ function init() {
   $('goLogin').addEventListener('click', () => switchAuthTab('login'));
 
   $('logoutBtn').addEventListener('click', () => {
-    localStorage.removeItem(TOKEN_KEY);
+    clearSession();
     showLogin();
   });
 
@@ -838,8 +891,7 @@ function init() {
   initGraph();
   initPapers();
 
-  if (getToken()) showDashboard();
-  else showLogin();
+  await restoreSession();
 }
 
 // ============ 화면 조각(partial) 로딩 ============
@@ -910,7 +962,7 @@ async function bootstrap() {
     return;
   }
 
-  init();
+  await init();
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);

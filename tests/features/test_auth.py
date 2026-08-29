@@ -62,9 +62,30 @@ class TestAuthRegister:
         # When: 회원가입 요청
         response = client.post("/api/auth/register", json=user_data)
 
-        # Then: 400 Bad Request
-        assert response.status_code == 400
-        assert "Username or email already exists" in response.json()["detail"]
+        # Then: 409 Conflict
+        assert response.status_code == 409
+        assert "이미 가입된 계정입니다. 로그인해주세요." in response.json()["detail"]
+
+    def test_register_duplicate_email(self, client: TestClient, test_user):
+        """같은 이메일이면 사용자명이 달라도 가입을 막습니다."""
+        response = client.post("/api/auth/register", json={
+            "username": "anotheruser",
+            "email": test_user.email,
+            "password": "SecurePassword123",
+        })
+
+        assert response.status_code == 409
+        assert "이미 가입된 계정입니다. 로그인해주세요." in response.json()["detail"]
+
+    def test_register_duplicate_case_insensitive(self, client: TestClient, test_user):
+        """대소문자만 다른 아이디/이메일도 중복으로 처리합니다."""
+        response = client.post("/api/auth/register", json={
+            "username": test_user.username.upper(),
+            "email": "other@example.com",
+            "password": "SecurePassword123",
+        })
+
+        assert response.status_code == 409
 
     def test_register_invalid_password(self, client: TestClient):
         """
@@ -136,6 +157,27 @@ class TestAuthLogin:
         assert data["data"]["token_type"] == "bearer"
         assert data["data"]["user"]["username"] == test_user.username
 
+    def test_login_with_email(self, client: TestClient, test_user, test_user_data):
+        """이메일로도 로그인할 수 있습니다."""
+        response = client.post("/api/auth/login", json={
+            "username": test_user.email,
+            "password": test_user_data["password"],
+        })
+
+        assert response.status_code == 200
+        assert response.json()["data"]["user"]["id"] == test_user.id
+
+    def test_login_case_insensitive_username(
+        self, client: TestClient, test_user, test_user_data
+    ):
+        """사용자명 대소문자가 달라도 로그인됩니다."""
+        response = client.post("/api/auth/login", json={
+            "username": test_user_data["username"].upper(),
+            "password": test_user_data["password"],
+        })
+
+        assert response.status_code == 200
+
     def test_login_invalid_username(self, client: TestClient):
         """
         존재하지 않는 사용자명으로 로그인 시도
@@ -154,7 +196,7 @@ class TestAuthLogin:
 
         # Then: 401 Unauthorized
         assert response.status_code == 401
-        assert "Invalid credentials" in response.json()["detail"]
+        assert "사용자명 또는 비밀번호가 올바르지 않습니다." in response.json()["detail"]
 
     def test_login_invalid_password(self, client: TestClient, test_user, test_user_data):
         """
@@ -174,7 +216,7 @@ class TestAuthLogin:
 
         # Then: 401 Unauthorized
         assert response.status_code == 401
-        assert "Invalid credentials" in response.json()["detail"]
+        assert "사용자명 또는 비밀번호가 올바르지 않습니다." in response.json()["detail"]
 
     def test_login_inactive_user(self, client: TestClient, db: Session, test_user_data):
         """

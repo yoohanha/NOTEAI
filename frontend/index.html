@@ -66,7 +66,7 @@
           src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"
           onerror="window.__cytoscapeFailed = true;"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260829a">
+  <link rel="stylesheet" href="style.css?v=20260829b">
 </head>
 <body class="bg-cream-50 text-ink min-h-screen font-sans antialiased">
 
@@ -101,8 +101,9 @@
       <!-- ---- 로그인 폼 ---- -->
       <form id="loginForm" class="space-y-4" novalidate>
         <div>
-          <label for="username" class="block text-sm font-medium mb-1">사용자명</label>
+          <label for="username" class="block text-sm font-medium mb-1">사용자명 또는 이메일</label>
           <input id="username" name="username" type="text" autocomplete="username" required
+                 placeholder="아이디 또는 이메일"
                  class="w-full rounded-xl border border-cream-300 bg-paper px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500">
         </div>
@@ -310,9 +311,9 @@
     모든 classic 스크립트는 DOMContentLoaded 이전에 평가되므로
     script.js의 init()에서 initCuration()/initGraph()/initPapers()를 안전하게 호출할 수 있습니다.
   -->
-  <script src="script.js?v=20260829a"></script>
-  <script src="curation.js?v=20260829a"></script>
-  <script src="graph.js?v=20260829a"></script>
-  <script src="papers.js?v=20260829a"></script>
+  <script src="script.js?v=20260829b"></script>
+  <script src="curation.js?v=20260829b"></script>
+  <script src="graph.js?v=20260829b"></script>
+  <script src="papers.js?v=20260829b"></script>
 </body>
 </html>

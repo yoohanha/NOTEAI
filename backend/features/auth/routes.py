@@ -13,11 +13,9 @@ from features.auth.schemas import (
     UserResponse,
     Token,
 )
-from features.auth.service import auth_service
+from features.auth.service import DuplicateAccountError, auth_service
 from features.auth.deps import get_current_user
-from datetime import timedelta
 from core.config import settings
-from core.security import create_access_token
 
 # 라우터 생성
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -42,10 +40,10 @@ async def register(
         HTTPException: 사용자명 또는 이메일 중복
     """
     try:
-        # 사용자 등록
+        # 아이디/이메일 중복을 DB에서 확인한 뒤 저장합니다.
         user = auth_service.register_user(db, user_data)
 
-        # 토큰 생성
+        # 가입과 동시에 JWT를 발급해 바로 세션을 시작합니다.
         access_token = auth_service.create_access_token_for_user(user)
 
         return {
@@ -56,8 +54,13 @@ async def register(
                 "token_type": "bearer",
                 "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             },
-            "message": "User registered successfully",
+            "message": "회원가입이 완료되었습니다.",
         }
+    except DuplicateAccountError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -93,7 +96,7 @@ async def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
+            detail="사용자명 또는 비밀번호가 올바르지 않습니다.",
         )
 
     # 토큰 생성
@@ -107,7 +110,7 @@ async def login(
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         },
-        "message": "Login successful",
+        "message": "로그인되었습니다.",
     }
 
 
