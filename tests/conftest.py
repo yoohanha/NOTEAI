@@ -25,6 +25,7 @@ from core.database import Base, get_db
 from core.config import settings
 from features.auth.models import User
 from features.notes.models import Note, NoteVersion, AISummary
+from features.media.models import MediaAsset  # noqa: F401
 from features.comments.models import Comment
 from features.teams.models import Team, TeamMember
 from features.collaborators.models import NoteCollaborator

@@ -131,7 +131,7 @@ async function restoreSession() {
 
   try {
     await apiFetch('/api/auth/me');
-    showDashboard();
+    applyRouteFromHash();
   } catch (_error) {
     clearSession();
     showLogin();
@@ -279,13 +279,46 @@ function showError(message) {
 
 // ============ 화면 전환 ============
 
+/** 로그인 / 허브 / 대시보드를 모두 숨깁니다. */
+function hideAppViews() {
+  $('loginView').classList.add('hidden');
+  $('loginView').classList.remove('flex');
+  $('matrixView').classList.add('hidden');
+  $('dashboardView').classList.add('hidden');
+}
+
 /** 인증 화면(로그인 탭)을 표시합니다. */
 function showLogin() {
   stopAutoRefresh();
-  $('dashboardView').classList.add('hidden');
+  hideAppViews();
   $('loginView').classList.remove('hidden');
   $('loginView').classList.add('flex');
   switchAuthTab('login');
+}
+
+/**
+ * URL 해시(#/matrix, #/research)에 맞춰 로그인 이후 화면을 엽니다.
+ */
+function applyRouteFromHash() {
+  const route = (window.location.hash || '#/matrix').replace(/^#\/?/, '') || 'matrix';
+
+  if (route === 'research') {
+    showDashboard();
+    return;
+  }
+
+  showMatrix();
+}
+
+/** 로그인 직후 환경 선택 허브(The Matrix)를 표시합니다. */
+function showMatrix() {
+  stopAutoRefresh();
+  hideAppViews();
+  $('matrixView').classList.remove('hidden');
+
+  if (window.location.hash !== '#/matrix') {
+    window.location.hash = '#/matrix';
+  }
 }
 
 /**
@@ -312,7 +345,7 @@ function switchAuthTab(tab) {
 
   setText(
     $('authSubtitle'),
-    isLogin ? '대시보드를 보려면 로그인하세요.' : '계정을 만들면 바로 대시보드로 이동합니다.'
+    isLogin ? '로그인하면 작업 환경을 선택할 수 있습니다.' : '계정을 만들면 The Matrix에서 환경을 고릅니다.'
   );
 
   // 탭을 옮기면 이전 오류 메시지는 더 이상 유효하지 않음
@@ -320,14 +353,21 @@ function switchAuthTab(tab) {
   $('signupError').classList.add('hidden');
 }
 
-/** 대시보드를 표시하고 데이터를 불러옵니다. */
+/** 기존 NOTEAI 연구 대시보드(NOTE_RESEARCH)를 표시하고 데이터를 불러옵니다. */
 function showDashboard() {
-  $('loginView').classList.add('hidden');
-  $('loginView').classList.remove('flex');
+  const alreadyOpen = !$('dashboardView').classList.contains('hidden');
+
+  hideAppViews();
   $('dashboardView').classList.remove('hidden');
 
-  // 모니터 탭을 기본 화면으로 열면서 데이터 로딩까지 함께 처리
-  switchView('monitor');
+  if (window.location.hash !== '#/research') {
+    window.location.hash = '#/research';
+  }
+
+  // 이미 대시보드에 있으면 탭을 리셋하지 않습니다.
+  if (!alreadyOpen) {
+    switchView('monitor');
+  }
 }
 
 /**
@@ -713,7 +753,7 @@ async function handleLogin(event) {
 
     saveSession(data.access_token);
     $('password').value = '';
-    showDashboard();
+    showMatrix();
   } catch (error) {
     setText(errorEl, error.message);
     errorEl.classList.remove('hidden');
@@ -774,7 +814,7 @@ async function handleSignup(event) {
 
     // 비밀번호가 DOM에 남지 않도록 폼 초기화
     $('signupForm').reset();
-    showDashboard();
+    showMatrix();
   } catch (error) {
     // 이미 있는 계정이면 로그인 화면으로 보냅니다.
     if (isDuplicateAccountError(error)) {
@@ -868,6 +908,27 @@ async function init() {
     showLogin();
   });
 
+  $('matrixLogoutBtn').addEventListener('click', () => {
+    clearSession();
+    showLogin();
+  });
+
+  $('backToMatrixBtn').addEventListener('click', () => {
+    showMatrix();
+  });
+
+  $('matrixGrid').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-matrix-route]');
+    if (!card || card.getAttribute('data-matrix-route') !== 'research') return;
+    event.preventDefault();
+    showDashboard();
+  });
+
+  window.addEventListener('hashchange', () => {
+    if (!getToken()) return;
+    applyRouteFromHash();
+  });
+
   $('autoRefresh').addEventListener('change', (event) => {
     // 모니터 탭에서만 폴링을 켭니다.
     if (event.target.checked && activeView === 'monitor') startAutoRefresh();
@@ -913,10 +974,10 @@ async function init() {
 async function loadPanels() {
   // 컨테이너 id -> 조각 파일 경로
   const PANEL_SOURCES = {
-    panelMonitor: 'pages/monitor.html?v=20260829h',
-    panelCuration: 'pages/curation.html?v=20260829h',
-    panelGraph: 'pages/graph.html?v=20260829h',
-    panelPapers: 'pages/papers.html?v=20260829h',
+    panelMonitor: 'pages/monitor.html?v=20260831a',
+    panelCuration: 'pages/curation.html?v=20260831a',
+    panelGraph: 'pages/graph.html?v=20260831a',
+    panelPapers: 'pages/papers.html?v=20260831a',
   };
 
   const entries = Object.entries(PANEL_SOURCES);

@@ -128,6 +128,7 @@ def register_models():
     from features.collaborators.models import NoteCollaborator
     from features.trends.models import TrendItem
     from features.monitor.models import CollectionRun
+    from features.media.models import MediaAsset
 
 
 def init_db():

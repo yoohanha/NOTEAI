@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>NOTE_3D · NoteAI</title>
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cream: { 50: '#FFFBF5', 100: '#F6EEE1', 200: '#E8DCC8', 300: '#D9C9B0' },
+            paper: '#FFFEFB',
+            forest: { 50: '#EEF4F0', 500: '#4A6B57', 600: '#3D5C4A', 700: '#2F4A3C' },
+            ink: { DEFAULT: '#2C2925', muted: '#6F6A62', faint: '#9A948A' },
+          },
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260831b">
+</head>
+<body class="bg-cream-50 text-ink min-h-screen font-sans antialiased">
+  <header class="border-b border-cream-200 bg-cream-50/90 backdrop-blur-md sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3">
+      <a href="/#/matrix" class="text-xs text-forest-600 hover:underline">← The Matrix</a>
+      <h1 class="text-lg font-bold tracking-tight">NOTE_3D</h1>
+      <span id="mediaCount" class="text-xs text-ink-faint"></span>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <p class="text-sm text-ink-muted">이미지와 동영상을 올려 한곳에서 미리보고 관리합니다.</p>
+
+    <section id="dropZone"
+             class="rounded-2xl border-2 border-dashed border-cream-300 bg-paper p-8 text-center
+                    transition hover:border-forest-500 hover:bg-forest-50/40">
+      <p class="text-sm font-medium mb-1">파일을 여기로 끌어다 놓거나</p>
+      <p class="text-xs text-ink-faint mb-4">PNG, JPG, WEBP, GIF, MP4, WEBM, MOV · 최대 40MB</p>
+      <label class="inline-flex items-center gap-2 bg-forest-600 hover:bg-forest-700 text-cream-50
+                    text-sm px-4 py-2 rounded-xl cursor-pointer transition">
+        파일 선택
+        <input id="mediaFileInput" type="file" class="hidden" multiple
+               accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime">
+      </label>
+      <p id="mediaStatus" class="mt-3 text-xs text-ink-muted" role="status"></p>
+    </section>
+
+    <p id="mediaError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert"></p>
+
+    <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-cream-50 text-left text-xs text-ink-muted">
+            <tr>
+              <th class="px-4 py-3 font-medium">미리보기</th>
+              <th class="px-4 py-3 font-medium">파일명</th>
+              <th class="px-4 py-3 font-medium">형식</th>
+              <th class="px-4 py-3 font-medium">크기</th>
+              <th class="px-4 py-3 font-medium">업로드</th>
+              <th class="px-4 py-3 font-medium text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody id="mediaTableBody" class="divide-y divide-cream-100"></tbody>
+        </table>
+      </div>
+      <p id="mediaEmpty" class="hidden px-5 py-12 text-center text-sm text-ink-faint">
+        아직 올린 파일이 없습니다. 위에서 이미지 또는 동영상을 추가해 보세요.
+      </p>
+    </section>
+  </main>
+
+  <div id="mediaModal" class="media-modal hidden" role="dialog" aria-modal="true" aria-label="미디어 확대 보기">
+    <button type="button" id="mediaModalClose" class="media-modal-close" aria-label="닫기">닫기</button>
+    <div id="mediaModalBody" class="media-modal-body"></div>
+  </div>
+
+  <script src="media.js?v=20260831b"></script>
+</body>
+</html>

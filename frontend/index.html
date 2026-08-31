@@ -68,7 +68,7 @@
           src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"
           onerror="window.__cytoscapeFailed = true;"></script>
 
-  <link rel="stylesheet" href="style.css?v=20260829h">
+  <link rel="stylesheet" href="style.css?v=20260831a">
 </head>
 <body class="bg-cream-50 text-ink min-h-screen font-sans antialiased">
 
@@ -200,6 +200,75 @@
   </section>
 
   <!-- ============================================================
+       The Matrix 허브 (로그인 직후)
+       ============================================================ -->
+  <section id="matrixView" class="hidden min-h-screen px-4 py-10 sm:py-16">
+    <div class="max-w-4xl mx-auto">
+      <div class="flex items-start justify-between gap-3 mb-10">
+        <div>
+          <p class="text-[11px] tracking-[0.28em] uppercase text-forest-600 font-medium mb-2">NoteAI · Environment</p>
+          <h1 class="text-4xl sm:text-5xl font-bold tracking-tight">The Matrix</h1>
+        </div>
+        <button type="button" id="matrixLogoutBtn"
+                class="text-xs text-ink-muted hover:text-ink px-2 py-1.5 transition">
+          로그아웃
+        </button>
+      </div>
+
+      <div id="matrixGrid" class="matrix-grid" role="list">
+        <button type="button" class="matrix-card" data-matrix-route="research" role="listitem">
+          <span class="matrix-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="6" y="16" width="36" height="20" rx="3"/>
+              <path d="M10 24h4M18 24h4M26 24h4M34 24h4M14 30h20"/>
+            </svg>
+          </span>
+          <span class="matrix-card-name">NOTE_RESEARCH</span>
+          <span class="matrix-card-meta">Input Source · Keyboard</span>
+        </button>
+
+        <a class="matrix-card" href="NOTE_3D/" data-matrix-route="note-3d" role="listitem">
+          <span class="matrix-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M24 8v20"/>
+              <rect x="20" y="6" width="8" height="14" rx="4"/>
+              <path d="M14 22a10 10 0 0 0 20 0M24 32v6M16 40h16"/>
+            </svg>
+          </span>
+          <span class="matrix-card-name">NOTE_3D</span>
+          <span class="matrix-card-meta">Input Source · Microphone</span>
+        </a>
+
+        <a class="matrix-card" href="NOTE_LECTURE/" data-matrix-route="lecture" role="listitem">
+          <span class="matrix-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 10h20l6 6v22H14V10z"/>
+              <path d="M34 10v6h6M20 24h14M20 30h10"/>
+            </svg>
+          </span>
+          <span class="matrix-card-name">NOTE_LECTURE</span>
+          <span class="matrix-card-meta">Input Source · Document</span>
+        </a>
+
+        <a class="matrix-card" href="NOTE_PAPER/" data-matrix-route="paper" role="listitem">
+          <span class="matrix-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M10 18 24 10l14 8v16L24 42 10 34V18z"/>
+              <path d="M10 18l14 8 14-8M24 26v16"/>
+            </svg>
+          </span>
+          <span class="matrix-card-name">NOTE_PAPER</span>
+          <span class="matrix-card-meta">Input Source · Cube</span>
+        </a>
+      </div>
+
+      <p class="mt-10 text-sm text-ink-muted leading-relaxed max-w-2xl">
+        작업의 성격과 정보의 형태에 따라 가장 최적화된 NoteAI 환경을 선택할 수 있습니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
        대시보드
        ============================================================ -->
   <section id="dashboardView" class="hidden">
@@ -211,6 +280,10 @@
           <span class="w-8 h-8 rounded-xl bg-forest-600 text-cream-50 flex items-center justify-center text-sm shadow-soft"
                 aria-hidden="true">🧠</span>
           <h1 class="text-lg font-bold tracking-tight">NOTEAI</h1>
+          <button type="button" id="backToMatrixBtn"
+                  class="text-xs text-forest-600 hover:underline px-1.5 py-1">
+            The Matrix
+          </button>
         </div>
 
         <!-- 워커 상태 배지 -->
@@ -313,9 +386,9 @@
     모든 classic 스크립트는 DOMContentLoaded 이전에 평가되므로
     script.js의 init()에서 initCuration()/initGraph()/initPapers()를 안전하게 호출할 수 있습니다.
   -->
-  <script src="script.js?v=20260829h"></script>
-  <script src="curation.js?v=20260829h"></script>
-  <script src="graph.js?v=20260829h"></script>
-  <script src="papers.js?v=20260829h"></script>
+  <script src="script.js?v=20260831a"></script>
+  <script src="curation.js?v=20260831a"></script>
+  <script src="graph.js?v=20260831a"></script>
+  <script src="papers.js?v=20260831a"></script>
 </body>
 </html>
