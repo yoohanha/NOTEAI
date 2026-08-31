@@ -215,10 +215,17 @@
           <p class="text-[11px] tracking-[0.28em] uppercase font-medium mb-2" style="color:#d4849a">NoteAI · Environment</p>
           <h1 class="text-4xl sm:text-5xl font-bold tracking-tight">The Matrix</h1>
         </div>
-        <button type="button" id="matrixLogoutBtn"
-                class="text-xs text-ink-muted hover:text-ink px-2 py-1.5 transition">
-          로그아웃
-        </button>
+        <div class="flex flex-col items-end gap-1">
+          <button type="button" id="matrixLogoutBtn"
+                  class="text-xs text-ink-muted hover:text-ink px-2 py-1.5 transition">
+            로그아웃
+          </button>
+          <button type="button" id="adminModeBtn"
+                  class="text-xs font-medium px-2 py-1.5 rounded-lg transition"
+                  style="color:#c45c74">
+            관리자모드
+          </button>
+        </div>
       </div>
 
       <div id="matrixGrid" class="matrix-grid" role="list">
@@ -271,6 +278,46 @@
       <p class="mt-10 text-sm text-ink-muted leading-relaxed max-w-2xl">
         작업의 성격과 정보의 형태에 따라 가장 최적화된 NoteAI 환경을 선택할 수 있습니다.
       </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       관리자 페이지 (회원 목록)
+       ============================================================ -->
+  <section id="adminView" class="hidden min-h-screen px-4 py-10 sm:py-16 lecture-page">
+    <div class="max-w-5xl mx-auto space-y-6">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <button type="button" id="adminBackBtn" class="text-xs text-forest-600 hover:underline mb-2">← The Matrix</button>
+          <p class="text-[11px] tracking-[0.28em] uppercase font-medium text-forest-500">NoteAI · Admin</p>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">관리자 페이지</h1>
+        </div>
+        <span id="adminCount" class="text-xs text-ink-faint"></span>
+      </div>
+
+      <p id="adminError" class="hidden lecture-card px-5 py-4 text-sm text-red-700 bg-red-50 border-red-200" role="alert"></p>
+
+      <section class="lecture-card overflow-hidden">
+        <div class="px-6 sm:px-8 pt-6 pb-3">
+          <h2 class="text-sm font-semibold tracking-tight">회원 정보</h2>
+          <p class="text-xs text-ink-faint mt-1">가입된 계정의 아이디, 이메일, 가입일입니다.</p>
+        </div>
+        <div class="overflow-x-auto px-2 sm:px-4 pb-4">
+          <table class="w-full text-sm">
+            <thead class="text-left text-xs text-ink-muted">
+              <tr>
+                <th class="px-4 py-3 font-medium">아이디</th>
+                <th class="px-4 py-3 font-medium">이메일</th>
+                <th class="px-4 py-3 font-medium">이름</th>
+                <th class="px-4 py-3 font-medium">가입일</th>
+                <th class="px-4 py-3 font-medium">상태</th>
+              </tr>
+            </thead>
+            <tbody id="adminUserBody" class="divide-y divide-cream-100"></tbody>
+          </table>
+        </div>
+        <p id="adminEmpty" class="hidden px-8 py-12 text-center text-sm text-ink-faint">등록된 회원이 없습니다.</p>
+      </section>
     </div>
   </section>
 
@@ -392,7 +439,7 @@
     모든 classic 스크립트는 DOMContentLoaded 이전에 평가되므로
     script.js의 init()에서 initCuration()/initGraph()/initPapers()를 안전하게 호출할 수 있습니다.
   -->
-  <script src="script.js?v=20260831a"></script>
+  <script src="script.js?v=20260831f"></script>
   <script src="curation.js?v=20260831a"></script>
   <script src="graph.js?v=20260831a"></script>
   <script src="papers.js?v=20260831a"></script>

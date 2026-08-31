@@ -14,7 +14,7 @@ from features.auth.schemas import (
     Token,
 )
 from features.auth.service import DuplicateAccountError, auth_service
-from features.auth.deps import get_current_user
+from features.auth.deps import get_current_user, is_admin_user
 from core.config import settings
 
 # 라우터 생성
@@ -45,11 +45,13 @@ async def register(
 
         # 가입과 동시에 JWT를 발급해 바로 세션을 시작합니다.
         access_token = auth_service.create_access_token_for_user(user)
+        user_payload = UserResponse.from_orm(user).dict()
+        user_payload["is_admin"] = is_admin_user(user)
 
         return {
             "status": 201,
             "data": {
-                "user": UserResponse.from_orm(user).dict(),
+                "user": user_payload,
                 "access_token": access_token,
                 "token_type": "bearer",
                 "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -102,10 +104,13 @@ async def login(
     # 토큰 생성
     access_token = auth_service.create_access_token_for_user(user)
 
+    user_payload = UserResponse.from_orm(user).dict()
+    user_payload["is_admin"] = is_admin_user(user)
+
     return {
         "status": 200,
         "data": {
-            "user": UserResponse.from_orm(user).dict(),
+            "user": user_payload,
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -145,8 +150,10 @@ async def get_current_user_info(
     Returns:
         사용자 정보
     """
+    user_payload = UserResponse.from_orm(current_user).dict()
+    user_payload["is_admin"] = is_admin_user(current_user)
     return {
         "status": 200,
-        "data": UserResponse.from_orm(current_user).dict(),
+        "data": user_payload,
         "message": "User info retrieved",
     }

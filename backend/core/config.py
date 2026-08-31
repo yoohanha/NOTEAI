@@ -36,6 +36,8 @@ class Settings(BaseSettings):
 
     # 보안
     BCRYPT_ROUNDS: int = 12
+    # The Matrix 관리자 페이지에 들어갈 수 있는 유일한 이메일
+    ADMIN_EMAIL: str = "yuhanmail@daum.net"
 
     # CORS 설정
     CORS_ORIGINS: list = ["http://localhost:8000", "http://localhost:3000"]

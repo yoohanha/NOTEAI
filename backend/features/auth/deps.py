@@ -12,6 +12,7 @@ from core.database import get_db
 from core.security import decode_token
 from features.auth.service import auth_service
 from features.auth.models import User
+from core.config import settings
 
 # HTTP Bearer 토큰 스키마 (인증 필수)
 security = HTTPBearer()
@@ -81,6 +82,30 @@ async def get_current_user(
         )
 
     return user
+
+
+def is_admin_user(user: User) -> bool:
+    """지정된 관리자 이메일과 대소문자 무시 비교합니다."""
+    admin_email = (getattr(settings, "ADMIN_EMAIL", "") or "").strip().lower()
+    user_email = (user.email or "").strip().lower()
+    return bool(admin_email) and user_email == admin_email
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    관리자 이메일 계정만 통과시킵니다.
+
+    일반 사용자가 /api/admin/* 또는 관리자 화면을 직접 열면
+    403과 함께 '접근 권한이 없습니다'를 받습니다.
+    """
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="접근 권한이 없습니다",
+        )
+    return current_user
 
 
 async def get_current_user_optional(

@@ -284,6 +284,7 @@ function hideAppViews() {
   $('loginView').classList.add('hidden');
   $('loginView').classList.remove('flex');
   $('matrixView').classList.add('hidden');
+  $('adminView').classList.add('hidden');
   $('dashboardView').classList.add('hidden');
 }
 
@@ -297,13 +298,18 @@ function showLogin() {
 }
 
 /**
- * URL 해시(#/matrix, #/research)에 맞춰 로그인 이후 화면을 엽니다.
+ * URL 해시(#/matrix, #/research, #/admin)에 맞춰 로그인 이후 화면을 엽니다.
  */
-function applyRouteFromHash() {
+async function applyRouteFromHash() {
   const route = (window.location.hash || '#/matrix').replace(/^#\/?/, '') || 'matrix';
 
   if (route === 'research') {
     showDashboard();
+    return;
+  }
+
+  if (route === 'admin') {
+    await openAdminOrDeny();
     return;
   }
 
@@ -319,6 +325,64 @@ function showMatrix() {
   if (window.location.hash !== '#/matrix') {
     window.location.hash = '#/matrix';
   }
+}
+
+/**
+ * 관리자 API로 권한을 확인하고, 실패하면 허브로 돌려보냅니다.
+ */
+async function openAdminOrDeny() {
+  try {
+    const data = await apiFetch('/api/admin/users');
+    hideAppViews();
+    $('adminView').classList.remove('hidden');
+    renderAdminUsers(data.items || []);
+  } catch (_error) {
+    window.alert('접근 권한이 없습니다');
+    showMatrix();
+  }
+}
+
+function renderAdminUsers(items) {
+  const body = $('adminUserBody');
+  const empty = $('adminEmpty');
+  body.replaceChildren();
+  $('adminCount').textContent = items.length ? `${items.length}명` : '';
+
+  if (!items.length) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  const fragment = document.createDocumentFragment();
+  items.forEach((user) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td class="px-4 py-4 font-medium">${escapeHtml(user.username)}</td>
+      <td class="px-4 py-4 text-ink-muted">${escapeHtml(user.email)}</td>
+      <td class="px-4 py-4 text-ink-muted">${escapeHtml(user.full_name || '–')}</td>
+      <td class="px-4 py-4 text-ink-muted whitespace-nowrap">${formatJoinDate(user.created_at)}</td>
+      <td class="px-4 py-4 text-ink-muted">${user.is_active ? '활성' : '비활성'}</td>
+    `;
+    fragment.appendChild(row);
+  });
+  body.appendChild(fragment);
+}
+
+function formatJoinDate(value) {
+  if (!value) return '–';
+  const normalized = /[Z+]|-\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return '–';
+  return date.toLocaleString('ko-KR');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -911,6 +975,18 @@ async function init() {
   $('matrixLogoutBtn').addEventListener('click', () => {
     clearSession();
     showLogin();
+  });
+
+  $('adminModeBtn').addEventListener('click', () => {
+    if (window.location.hash === '#/admin') {
+      openAdminOrDeny();
+      return;
+    }
+    window.location.hash = '#/admin';
+  });
+
+  $('adminBackBtn').addEventListener('click', () => {
+    showMatrix();
   });
 
   $('backToMatrixBtn').addEventListener('click', () => {
