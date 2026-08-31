@@ -66,11 +66,10 @@ class LectureService:
     """강좌 폴더와 교안 CRUD"""
 
     @staticmethod
-    def list_courses(db: Session, user: User) -> List[Tuple[LectureCourse, int]]:
-        """현재 사용자의 강좌와 파일 개수를 최신순으로 반환합니다."""
+    def list_courses(db: Session, user: User = None) -> List[Tuple[LectureCourse, int]]:
+        """공유 강좌와 파일 개수를 최신순으로 반환합니다."""
         courses = (
             db.query(LectureCourse)
-            .filter(LectureCourse.user_id == user.id)
             .order_by(LectureCourse.created_at.desc())
             .all()
         )
@@ -78,10 +77,7 @@ class LectureService:
         for course in courses:
             count = (
                 db.query(LectureMaterial)
-                .filter(
-                    LectureMaterial.course_id == course.id,
-                    LectureMaterial.user_id == user.id,
-                )
+                .filter(LectureMaterial.course_id == course.id)
                 .count()
             )
             result.append((course, count))
@@ -97,14 +93,15 @@ class LectureService:
         return course
 
     @staticmethod
+    def get_course(db: Session, course_id: int) -> Optional[LectureCourse]:
+        return db.query(LectureCourse).filter(LectureCourse.id == course_id).first()
+
+    @staticmethod
     def get_owned_course(
         db: Session, user: User, course_id: int
     ) -> Optional[LectureCourse]:
-        return (
-            db.query(LectureCourse)
-            .filter(LectureCourse.id == course_id, LectureCourse.user_id == user.id)
-            .first()
-        )
+        """하위 호환: 소유와 무관하게 강좌를 조회합니다."""
+        return LectureService.get_course(db, course_id)
 
     @staticmethod
     def list_materials(
@@ -113,27 +110,29 @@ class LectureService:
         """강좌 안의 교안을 최신순으로 반환합니다."""
         return (
             db.query(LectureMaterial)
-            .filter(
-                LectureMaterial.course_id == course_id,
-                LectureMaterial.user_id == user.id,
-            )
+            .filter(LectureMaterial.course_id == course_id)
             .order_by(LectureMaterial.created_at.desc())
             .all()
         )
 
     @staticmethod
-    def get_owned_material(
-        db: Session, user: User, course_id: int, material_id: int
+    def get_material(
+        db: Session, course_id: int, material_id: int
     ) -> Optional[LectureMaterial]:
         return (
             db.query(LectureMaterial)
             .filter(
                 LectureMaterial.id == material_id,
                 LectureMaterial.course_id == course_id,
-                LectureMaterial.user_id == user.id,
             )
             .first()
         )
+
+    @staticmethod
+    def get_owned_material(
+        db: Session, user: User, course_id: int, material_id: int
+    ) -> Optional[LectureMaterial]:
+        return LectureService.get_material(db, course_id, material_id)
 
     @staticmethod
     async def save_upload(
@@ -184,7 +183,7 @@ class LectureService:
         db: Session, user: User, course_id: int, material_id: int
     ) -> bool:
         """교안 한 건을 DB와 클라우드/디스크에서 삭제합니다."""
-        material = LectureService.get_owned_material(db, user, course_id, material_id)
+        material = LectureService.get_material(db, course_id, material_id)
         if not material:
             return False
 
@@ -196,7 +195,7 @@ class LectureService:
     @staticmethod
     def delete_course(db: Session, user: User, course_id: int) -> bool:
         """강좌와 안의 교안을 모두 삭제합니다."""
-        course = LectureService.get_owned_course(db, user, course_id)
+        course = LectureService.get_course(db, course_id)
         if not course:
             return False
 

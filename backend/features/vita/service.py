@@ -16,19 +16,18 @@ class VitaService:
     """사용자별 논문/자격증/교육 경력 CRUD"""
 
     @staticmethod
-    def list_all(db: Session, user: User) -> dict:
-        """세 섹션 데이터를 한 번에 반환합니다."""
+    def list_all(db: Session, user: User = None) -> dict:
+        """공유 이력 세 섹션을 한 번에 반환합니다."""
         return {
-            "publications": VitaService._list(db, VitaPublication, user),
-            "certificates": VitaService._list(db, VitaCertificate, user),
-            "teachings": VitaService._list(db, VitaTeaching, user),
+            "publications": VitaService._list(db, VitaPublication),
+            "certificates": VitaService._list(db, VitaCertificate),
+            "teachings": VitaService._list(db, VitaTeaching),
         }
 
     @staticmethod
-    def _list(db: Session, model: Type, user: User) -> list:
+    def _list(db: Session, model: Type) -> list:
         return (
             db.query(model)
-            .filter(model.user_id == user.id)
             .order_by(model.created_at.desc())
             .all()
         )
@@ -84,10 +83,10 @@ class VitaService:
 
     @staticmethod
     def delete_owned(db: Session, user: User, model: Type, item_id: int) -> bool:
-        """본인 항목만 삭제합니다."""
+        """항목을 id로 삭제합니다. 호출부는 관리자만 허용합니다."""
         row = (
             db.query(model)
-            .filter(model.id == item_id, model.user_id == user.id)
+            .filter(model.id == item_id)
             .first()
         )
         if not row:

@@ -45,7 +45,7 @@ async def list_vita(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """현재 사용자의 이력 세 섹션을 반환합니다."""
+    """로그인 사용자가 공유하는 이력 세 섹션을 반환합니다."""
     bundle = vita_service.list_all(db, current_user)
     data = {
         "publications": [_dump(PublicationResponse, row) for row in bundle["publications"]],

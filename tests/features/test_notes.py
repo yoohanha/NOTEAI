@@ -150,28 +150,24 @@ class TestGetNote:
         # Then: 404 Not Found
         assert response.status_code == 404
 
-    def test_get_private_note_unauthorized(
+    def test_get_shared_note_as_other_user(
         self, client: TestClient, test_note, test_another_user
     ):
         """
-        다른 사용자의 비공개 노트 조회 시도
+        로그인한 다른 사용자도 공유 노트를 열람할 수 있습니다.
 
         GET /api/notes/{note_id}
-        응답: 404 Not Found (권한 없음)
+        응답: 200 OK
         """
         from conftest import get_auth_headers
 
-        # Given: 다른 사용자의 인증 정보
         other_headers = get_auth_headers(test_another_user.id, test_another_user.username)
-
-        # When: 다른 사용자의 비공개 노트 조회
         response = client.get(
             f"/api/notes/{test_note.id}",
             headers=other_headers
         )
-
-        # Then: 404 Not Found (권한 없음)
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert response.json()["data"]["id"] == test_note.id
 
     def test_get_public_note_without_auth(self, client: TestClient, db: Session, test_user):
         """
@@ -579,6 +575,17 @@ class TestNoteList:
         assert "notes" in data["data"]
         assert "pagination" in data["data"]
         assert "total" in data["data"]["pagination"]
+
+    def test_notes_list_includes_other_users(
+        self, client: TestClient, test_note, test_another_user
+    ):
+        from conftest import get_auth_headers
+
+        other_headers = get_auth_headers(test_another_user.id, test_another_user.username)
+        response = client.get("/api/notes", headers=other_headers)
+        assert response.status_code == 200
+        ids = {note["id"] for note in response.json()["data"]["notes"]}
+        assert test_note.id in ids
 
     def test_pagination_works(self, client: TestClient, auth_headers):
         """

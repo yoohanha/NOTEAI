@@ -34,7 +34,7 @@ async def get_notes(
     db: Session = Depends(get_db),
 ) -> dict:
     """
-    사용자의 노트 목록 조회
+    로그인 사용자가 공유하는 노트 목록 조회
 
     Args:
         page: 페이지 번호

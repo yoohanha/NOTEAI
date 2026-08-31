@@ -91,22 +91,23 @@ class MediaService:
         return asset
 
     @staticmethod
-    def list_assets(db: Session, user: User) -> List[MediaAsset]:
-        """현재 사용자의 미디어를 최신순으로 반환합니다."""
+    def list_assets(db: Session, user: User = None) -> List[MediaAsset]:
+        """로그인한 사용자가 공유하는 미디어를 최신순으로 반환합니다."""
         return (
             db.query(MediaAsset)
-            .filter(MediaAsset.user_id == user.id)
             .order_by(MediaAsset.created_at.desc())
             .all()
         )
 
     @staticmethod
+    def get_by_id(db: Session, asset_id: int) -> Optional[MediaAsset]:
+        """공유 미디어 한 건을 조회합니다."""
+        return db.query(MediaAsset).filter(MediaAsset.id == asset_id).first()
+
+    @staticmethod
     def get_owned(db: Session, user: User, asset_id: int) -> Optional[MediaAsset]:
-        return (
-            db.query(MediaAsset)
-            .filter(MediaAsset.id == asset_id, MediaAsset.user_id == user.id)
-            .first()
-        )
+        """하위 호환: 소유와 무관하게 id로 조회합니다."""
+        return MediaService.get_by_id(db, asset_id)
 
     @staticmethod
     def file_path(asset: MediaAsset) -> Optional[Path]:
@@ -117,8 +118,8 @@ class MediaService:
 
     @staticmethod
     def delete_asset(db: Session, user: User, asset_id: int) -> bool:
-        """소유한 미디어를 DB와 클라우드/디스크에서 삭제합니다."""
-        asset = MediaService.get_owned(db, user, asset_id)
+        """미디어를 DB와 클라우드/디스크에서 삭제합니다. 호출부는 관리자만 허용합니다."""
+        asset = MediaService.get_by_id(db, asset_id)
         if not asset:
             return False
 

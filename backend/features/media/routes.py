@@ -33,7 +33,7 @@ async def list_media(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """현재 사용자가 올린 NOTE_3D 미디어 목록"""
+    """현재 로그인 사용자가 볼 수 있는 공유 NOTE_3D 미디어 목록"""
     items = media_service.list_assets(db, current_user)
     return {
         "status": 200,
@@ -67,8 +67,8 @@ async def download_media(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """소유한 미디어 파일 본문 또는 클라우드 주소로 보냅니다."""
-    asset = media_service.get_owned(db, current_user, asset_id)
+    """공유 미디어 파일 본문 또는 클라우드 주소로 보냅니다."""
+    asset = media_service.get_by_id(db, asset_id)
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다")
 

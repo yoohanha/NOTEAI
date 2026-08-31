@@ -39,6 +39,30 @@ def test_regular_user_cannot_delete_media(client, auth_headers):
     assert client.get("/api/media", headers=auth_headers).json()["data"]["total"] == 1
 
 
+def test_media_list_is_shared(client, auth_headers, admin_headers):
+    files = {"file": ("shared.png", BytesIO(b"\x89PNG\r\n\x1a\nfake"), "image/png")}
+    created = client.post("/api/media", files=files, headers=admin_headers)
+    assert created.status_code == 201
+    listed = client.get("/api/media", headers=auth_headers)
+    assert listed.status_code == 200
+    names = {item["original_name"] for item in listed.json()["data"]["items"]}
+    assert "shared.png" in names
+    preview = client.get(
+        f"/api/media/{created.json()['data']['id']}/file",
+        headers=auth_headers,
+    )
+    assert preview.status_code == 200
+
+
+def test_admin_can_delete_other_users_media(client, auth_headers, admin_headers):
+    files = {"file": ("member.png", BytesIO(b"\x89PNG\r\n\x1a\nfake"), "image/png")}
+    created = client.post("/api/media", files=files, headers=auth_headers)
+    asset_id = created.json()["data"]["id"]
+    deleted = client.delete(f"/api/media/{asset_id}", headers=admin_headers)
+    assert deleted.status_code == 200
+    assert client.get("/api/media", headers=auth_headers).json()["data"]["total"] == 0
+
+
 def test_rejects_unsupported_type(client, auth_headers):
     files = {"file": ("notes.exe", BytesIO(b"binary"), "application/octet-stream")}
     response = client.post("/api/media", files=files, headers=auth_headers)

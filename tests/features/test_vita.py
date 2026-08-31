@@ -84,3 +84,15 @@ def test_regular_user_cannot_delete_publication(client, auth_headers):
     blocked = client.delete(f"/api/vita/publications/{item_id}", headers=auth_headers)
     assert blocked.status_code == 403
     assert len(client.get("/api/vita", headers=auth_headers).json()["data"]["publications"]) == 1
+
+
+def test_vita_list_is_shared(client, auth_headers, admin_headers):
+    created = client.post(
+        "/api/vita/publications",
+        json={"title": "Shared Paper", "venue": "NeurIPS", "year": "2026"},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201
+    listed = client.get("/api/vita", headers=auth_headers)
+    titles = {item["title"] for item in listed.json()["data"]["publications"]}
+    assert "Shared Paper" in titles

@@ -76,19 +76,9 @@ class NoteService:
         if not note:
             return None
 
-        # 권한 검사
-        if not note.is_public and user and note.user_id != user.id:
-            # 협업자 확인
-            from features.collaborators.models import NoteCollaborator
-            collab = db.query(NoteCollaborator).filter(
-                and_(
-                    NoteCollaborator.note_id == note_id,
-                    NoteCollaborator.user_id == user.id
-                )
-            ).first()
-
-            if not collab:
-                return None
+        # 로그인 사용자는 공유 노트를 모두 열람할 수 있습니다.
+        if user is None and not note.is_public:
+            return None
 
         # 조회수 증가
         note.view_count += 1
@@ -158,12 +148,12 @@ class NoteService:
     @staticmethod
     def delete_note(db: Session, note_id: int, user: User) -> bool:
         """
-        노트 삭제 (소프트 삭제)
+        노트 삭제 (소프트 삭제). 호출부는 관리자만 허용합니다.
 
         Args:
             db: 데이터베이스 세션
             note_id: 노트 ID
-            user: 현재 사용자 (소유자만 가능)
+            user: 관리자 (라우트에서 이미 검증)
 
         Returns:
             성공 여부
@@ -171,7 +161,6 @@ class NoteService:
         note = db.query(Note).filter(
             and_(
                 Note.id == note_id,
-                Note.user_id == user.id,
                 Note.deleted_at.is_(None)
             )
         ).first()
@@ -231,12 +220,7 @@ class NoteService:
         Returns:
             (노트 리스트, 전체 개수)
         """
-        query = db.query(Note).filter(
-            and_(
-                Note.user_id == user.id,
-                Note.deleted_at.is_(None)
-            )
-        )
+        query = db.query(Note).filter(Note.deleted_at.is_(None))
 
         # 필터 적용
         if category:
@@ -282,9 +266,7 @@ class NoteService:
             )
         ]
 
-        if user:
-            filters.append(Note.user_id == user.id)
-        else:
+        if user is None:
             filters.append(Note.is_public == True)
 
         query = db.query(Note).filter(and_(*filters))

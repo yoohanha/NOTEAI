@@ -120,6 +120,22 @@ def test_regular_user_cannot_delete_course(client, auth_headers):
     assert client.get("/api/lectures", headers=auth_headers).json()["data"]["total"] == 1
 
 
+def test_lecture_list_is_shared(client, auth_headers, admin_headers):
+    created = client.post(
+        "/api/lectures",
+        json={"name": "공유 강좌"},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201
+    course_id = created.json()["data"]["id"]
+    listed = client.get("/api/lectures", headers=auth_headers)
+    names = {item["name"] for item in listed.json()["data"]["items"]}
+    assert "공유 강좌" in names
+    detail = client.get(f"/api/lectures/{course_id}", headers=auth_headers)
+    assert detail.status_code == 200
+    assert detail.json()["data"]["course"]["name"] == "공유 강좌"
+
+
 def test_stores_cloudinary_url_for_lecture_file(client, auth_headers, monkeypatch):
     def fake_upload(payload, *, folder, resource_type, filename):
         return {

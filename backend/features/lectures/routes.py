@@ -46,7 +46,7 @@ async def list_courses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """현재 사용자의 강좌 폴더 목록"""
+    """로그인 사용자가 공유하는 강좌 폴더 목록"""
     rows = lecture_service.list_courses(db, current_user)
     items = [_course_dict(course, count) for course, count in rows]
     return {
@@ -82,7 +82,7 @@ async def get_course(
     db: Session = Depends(get_db),
 ) -> dict:
     """강좌 상세와 교안 목록"""
-    course = lecture_service.get_owned_course(db, current_user, course_id)
+    course = lecture_service.get_course(db, course_id)
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="강좌를 찾을 수 없습니다")
 
@@ -126,7 +126,7 @@ async def upload_material(
     db: Session = Depends(get_db),
 ) -> dict:
     """선택한 강좌에 교안 파일을 올립니다."""
-    course = lecture_service.get_owned_course(db, current_user, course_id)
+    course = lecture_service.get_course(db, course_id)
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="강좌를 찾을 수 없습니다")
 
@@ -150,7 +150,7 @@ async def download_material(
     db: Session = Depends(get_db),
 ):
     """소유한 교안 본문 또는 클라우드 주소로 보냅니다."""
-    material = lecture_service.get_owned_material(db, current_user, course_id, file_id)
+    material = lecture_service.get_material(db, course_id, file_id)
     if not material:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다")
 
