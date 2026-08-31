@@ -52,7 +52,7 @@ services:
       - key: MONITOR_AUTOSTART
         value: "true"
 
-      # Cloudinary — 대시보드에서 값을 넣으세요. 비우면 업로드가 로컬로 폴백되어 재배포 시 사라집니다.
+      # Cloudinary — 대시보드에서 값을 넣으세요. 비우면 호스팅 기동이 실패합니다.
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

@@ -12,7 +12,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from core.config import settings
-from core.storage import delete_stored, upload_bytes
+from core.storage import delete_stored, local_file_path, upload_bytes
 from features.auth.models import User
 from features.lectures.models import LectureCourse, LectureMaterial
 
@@ -161,7 +161,7 @@ class LectureService:
             user_id=user.id,
             original_name=(file.filename or f"untitled{suffix}")[:255],
             stored_name=stored["public_id"][:255],
-            public_url=(stored.get("url") or "")[:512],
+            public_url=(stored.get("url") or "")[:1024],
             cloudinary_id=stored["public_id"][:255] if stored.get("storage") == "cloudinary" else "",
             mime_type=mime,
             extension=suffix.lstrip("."),
@@ -177,13 +177,7 @@ class LectureService:
         """로컬 폴백 파일이 있으면 경로를 반환합니다."""
         if getattr(material, "public_url", ""):
             return None
-        if not material.stored_name:
-            return None
-        upload_dir = Path(settings.UPLOAD_DIR)
-        if not upload_dir.is_absolute():
-            upload_dir = Path(__file__).resolve().parents[2] / upload_dir
-        path = upload_dir / material.stored_name
-        return path if path.exists() else None
+        return local_file_path(material.stored_name)
 
     @staticmethod
     def delete_material(

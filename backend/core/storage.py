@@ -3,14 +3,25 @@
 
 Render처럼 디스크가 휘발성인 환경에서는 업로드를 Cloudinary에 두고
 DB에는 secure_url만 저장합니다. 키가 없으면 개발/테스트용으로
-로컬 uploads/ 폴백을 씁니다.
+로컬 uploads/ 폴백을 씁니다. 호스팅에서는 폴백을 허용하지 않습니다.
 """
 
+import os
 import uuid
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
 from core.config import settings
+
+
+def is_hosted_runtime() -> bool:
+    """Render / Railway / Fly 등 디스크가 휘발성인 호스팅인지 확인합니다."""
+    return bool(
+        os.environ.get("RENDER")
+        or os.environ.get("RAILWAY_ENVIRONMENT")
+        or os.environ.get("FLY_APP_NAME")
+    )
 
 
 def is_cloudinary_configured() -> bool:
@@ -20,6 +31,17 @@ def is_cloudinary_configured() -> bool:
         and (getattr(settings, "CLOUDINARY_API_KEY", "") or "").strip()
         and (getattr(settings, "CLOUDINARY_API_SECRET", "") or "").strip()
     )
+
+
+def require_persistent_storage() -> None:
+    """
+    호스팅에서 Cloudinary가 빠지면 업로드가 디스크에 쌓였다가 재배포 때 사라집니다.
+    """
+    if is_hosted_runtime() and not is_cloudinary_configured():
+        raise RuntimeError(
+            "호스팅 환경에서는 Cloudinary가 필요합니다. "
+            "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET를 설정하세요."
+        )
 
 
 def _configure() -> None:
@@ -66,6 +88,12 @@ def upload_bytes(
             filename=filename,
         )
 
+    if is_hosted_runtime():
+        raise ValueError(
+            "Cloudinary 환경 변수가 없어 파일을 클라우드에 올릴 수 없습니다. "
+            "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET를 설정하세요."
+        )
+
     dest_dir = _upload_root() / folder
     dest_dir.mkdir(parents=True, exist_ok=True)
     stored_name = f"{public_id}{suffix}"
@@ -78,6 +106,14 @@ def upload_bytes(
         "resource_type": resource_type,
         "local_path": str(dest),
     }
+
+
+def local_file_path(stored_name: Optional[str]) -> Optional[Path]:
+    """로컬 폴백으로 저장된 파일이 있으면 절대 경로를 반환합니다."""
+    if not stored_name:
+        return None
+    path = _upload_root() / stored_name
+    return path if path.exists() and path.is_file() else None
 
 
 def _upload_cloudinary(
@@ -93,8 +129,10 @@ def _upload_cloudinary(
 
     _configure()
     try:
+        buffer = BytesIO(payload)
+        buffer.name = filename or "upload.bin"
         result = cloudinary.uploader.upload(
-            payload,
+            buffer,
             folder=folder,
             public_id=public_id,
             resource_type=resource_type,

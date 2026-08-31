@@ -34,6 +34,12 @@ from features.collaborators.models import NoteCollaborator
 from core.security import hash_password, create_access_token
 
 
+@pytest.fixture(autouse=True)
+def _use_local_storage_in_tests(monkeypatch):
+    """테스트는 실제 Cloudinary 네트워크를 타지 않고 로컬 폴백을 씁니다."""
+    monkeypatch.setattr("core.storage.is_cloudinary_configured", lambda: False)
+
+
 # ============ 테스트 DB 설정 ============
 
 # 테스트용 SQLite DB (메모리)

@@ -107,3 +107,28 @@ def test_delete_course_removes_files(client, auth_headers):
         headers=auth_headers,
     )
     assert missing.status_code == 404
+
+
+def test_stores_cloudinary_url_for_lecture_file(client, auth_headers, monkeypatch):
+    def fake_upload(payload, *, folder, resource_type, filename):
+        return {
+            "url": "https://res.cloudinary.com/demo/raw/upload/week1.pdf",
+            "public_id": f"{folder}/cloud-id",
+            "storage": "cloudinary",
+            "resource_type": resource_type,
+        }
+
+    monkeypatch.setattr("features.lectures.service.upload_bytes", fake_upload)
+    course = client.post(
+        "/api/lectures",
+        json={"name": "클라우드 교안"},
+        headers=auth_headers,
+    ).json()["data"]
+    files = {"file": ("week1.pdf", BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    uploaded = client.post(
+        f"/api/lectures/{course['id']}/files",
+        files=files,
+        headers=auth_headers,
+    )
+    assert uploaded.status_code == 201
+    assert uploaded.json()["data"]["public_url"].startswith("https://res.cloudinary.com/")

@@ -22,7 +22,8 @@ import uvicorn
 
 # Core 모듈
 from core.config import settings
-from core.database import init_db, register_models
+from core.database import database_kind, init_db, register_models
+from core.storage import is_cloudinary_configured
 
 # 모델 간 relationship은 문자열로 참조되므로, 앱을 import하는 것만으로
 # 모든 모델이 레지스트리에 등록되어 있어야 합니다. startup 이벤트에만
@@ -109,6 +110,10 @@ async def health_check() -> dict:
         "status": "healthy",
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        "persistence": {
+            "database": database_kind(),
+            "cloudinary": is_cloudinary_configured(),
+        },
     }
 
 

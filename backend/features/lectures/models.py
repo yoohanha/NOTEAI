@@ -36,7 +36,7 @@ class LectureMaterial(Base):
 
     original_name = Column(String(255), nullable=False)
     stored_name = Column(String(255), nullable=False)
-    public_url = Column(String(512), nullable=False, default="")
+    public_url = Column(String(1024), nullable=False, default="")
     cloudinary_id = Column(String(255), nullable=False, default="")
     mime_type = Column(String(120), nullable=False)
     extension = Column(String(16), nullable=False)

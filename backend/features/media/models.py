@@ -23,7 +23,7 @@ class MediaAsset(Base):
     # 디스크에 저장된 파일 이름 또는 Cloudinary public_id
     stored_name = Column(String(255), nullable=False)
     # Cloudinary(또는 호환 CDN)가 준 영구 HTTPS 주소
-    public_url = Column(String(512), nullable=False, default="")
+    public_url = Column(String(1024), nullable=False, default="")
     cloudinary_id = Column(String(255), nullable=False, default="")
     mime_type = Column(String(100), nullable=False)
     kind = Column(String(20), nullable=False, index=True)  # image | video

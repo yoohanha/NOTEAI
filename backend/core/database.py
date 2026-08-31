@@ -5,7 +5,6 @@
 - Base 클래스
 """
 
-import os
 from pathlib import Path
 from typing import Generator
 
@@ -15,15 +14,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool, StaticPool
 
 from core.config import settings
-
-
-def is_hosted_runtime() -> bool:
-    """Render / Railway / Fly 등 디스크가 휘발성인 호스팅인지 확인합니다."""
-    return bool(
-        os.environ.get("RENDER")
-        or os.environ.get("RAILWAY_ENVIRONMENT")
-        or os.environ.get("FLY_APP_NAME")
-    )
+from core.storage import is_hosted_runtime, require_persistent_storage
 
 
 def resolve_database_url(raw_url: str) -> str:
@@ -152,6 +143,11 @@ def require_persistent_database() -> None:
         )
 
 
+def database_kind() -> str:
+    """헬스 체크용 DB 종류. 비밀번호는 넣지 않습니다."""
+    return "sqlite" if _IS_SQLITE else "postgresql"
+
+
 def _describe_database() -> str:
     """로그에 비밀번호 없이 DB 종류를 남깁니다."""
     parsed = make_url(DATABASE_URL)
@@ -193,9 +189,9 @@ def _ensure_upload_url_columns():
     """
     inspector = inspect(engine)
     specs = (
-        ("media_assets", "public_url", "VARCHAR(512) DEFAULT ''"),
+        ("media_assets", "public_url", "VARCHAR(1024) DEFAULT ''"),
         ("media_assets", "cloudinary_id", "VARCHAR(255) DEFAULT ''"),
-        ("lecture_materials", "public_url", "VARCHAR(512) DEFAULT ''"),
+        ("lecture_materials", "public_url", "VARCHAR(1024) DEFAULT ''"),
         ("lecture_materials", "cloudinary_id", "VARCHAR(255) DEFAULT ''"),
     )
     existing_tables = set(inspector.get_table_names())
@@ -208,6 +204,18 @@ def _ensure_upload_url_columns():
         with engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
 
+    # 기존 Postgres 컬럼이 VARCHAR(512)이면 Cloudinary URL이 잘릴 수 있습니다.
+    if not _IS_SQLITE:
+        for table in ("media_assets", "lecture_materials"):
+            if table not in existing_tables:
+                continue
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table} ALTER COLUMN public_url TYPE VARCHAR(1024)"
+                    )
+                )
+
 
 def init_db():
     """
@@ -215,6 +223,7 @@ def init_db():
     모든 테이블 생성
     """
     require_persistent_database()
+    require_persistent_storage()
     register_models()
 
     Base.metadata.create_all(bind=engine)
