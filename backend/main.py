@@ -40,6 +40,7 @@ from features.graph.routes import router as graph_router
 from features.papers.routes import router as papers_router
 from features.media.routes import router as media_router
 from features.lectures.routes import router as lectures_router
+from features.vita.routes import router as vita_router
 
 # FastAPI 앱 초기화
 app = FastAPI(
@@ -89,6 +90,7 @@ app.include_router(graph_router, prefix="/api")    # 토픽 지식 그래프 분
 app.include_router(papers_router, prefix="/api")   # arXiv 논문 검색
 app.include_router(media_router, prefix="/api")    # NOTE_3D 이미지/동영상
 app.include_router(lectures_router, prefix="/api") # NOTE_LECTURE 강좌/교안
+app.include_router(vita_router, prefix="/api")     # NOTE_PAPER 이력
 # 추가 라우터: users, comments, teams, ai
 
 

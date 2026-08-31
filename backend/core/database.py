@@ -130,6 +130,7 @@ def register_models():
     from features.monitor.models import CollectionRun
     from features.media.models import MediaAsset
     from features.lectures.models import LectureCourse, LectureMaterial
+    from features.vita.models import VitaCertificate, VitaPublication, VitaTeaching
 
 
 def init_db():

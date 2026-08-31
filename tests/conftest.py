@@ -27,6 +27,7 @@ from features.auth.models import User
 from features.notes.models import Note, NoteVersion, AISummary
 from features.media.models import MediaAsset  # noqa: F401
 from features.lectures.models import LectureCourse, LectureMaterial  # noqa: F401
+from features.vita.models import VitaCertificate, VitaPublication, VitaTeaching  # noqa: F401
 from features.comments.models import Comment
 from features.teams.models import Team, TeamMember
 from features.collaborators.models import NoteCollaborator

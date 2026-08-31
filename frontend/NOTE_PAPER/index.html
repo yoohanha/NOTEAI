@@ -3,15 +3,148 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>NOTE_PAPER · NoteAI</title>
-  <link rel="stylesheet" href="../style.css?v=20260831a">
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cream: { 50: '#FFFBF5', 100: '#F6EEE1', 200: '#E8DCC8', 300: '#D9C9B0' },
+            paper: '#FFFEFB',
+            forest: { 50: '#EEF4F0', 100: '#D5E4DA', 500: '#4A6B57', 600: '#3D5C4A', 700: '#2F4A3C' },
+            ink: { DEFAULT: '#2C2925', muted: '#6F6A62', faint: '#9A948A' },
+          },
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260831e">
 </head>
-<body>
-  <main class="workspace-page">
-    <p class="text-xs tracking-[0.2em] uppercase" style="color:#3d5c4a;margin-bottom:0.75rem;">The Matrix</p>
-    <h1>NOTE Paper Page</h1>
-    <p style="color:#6f6a62;margin-bottom:1.5rem;">논문 아카이브 환경입니다. 곧 연결됩니다.</p>
-    <a href="/#/matrix">← The Matrix로 돌아가기</a>
+<body class="lecture-page text-ink font-sans antialiased">
+  <header class="sticky top-0 z-10 border-b border-cream-200/80 bg-cream-50/80 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-5 flex flex-wrap items-center gap-3">
+      <a href="/#/matrix" class="text-xs font-medium text-forest-600 hover:underline">← The Matrix</a>
+      <div class="min-w-0">
+        <p class="text-[11px] tracking-[0.28em] uppercase font-medium text-forest-500">NoteAI · Vita</p>
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight">NOTE_PAPER</h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-8 py-10 space-y-8">
+    <section class="lecture-card px-6 sm:px-8 py-6">
+      <p class="text-sm text-ink-muted leading-relaxed max-w-2xl">
+        논문, 자격증, 교육 경력을 한곳에서 관리합니다. 각 섹션의 + 버튼으로 항목을 추가하세요.
+      </p>
+    </section>
+
+    <p id="vitaError" class="hidden lecture-card px-5 py-4 text-sm text-red-700 bg-red-50 border-red-200" role="alert"></p>
+    <p id="vitaStatus" class="text-xs text-ink-muted" role="status"></p>
+
+    <section class="lecture-card overflow-hidden">
+      <div class="px-6 sm:px-8 pt-6 pb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold tracking-tight">논문</h2>
+          <p class="text-xs text-ink-faint mt-1">학술지·학회 발표 실적</p>
+        </div>
+        <button type="button" data-open-form="publication"
+                class="w-9 h-9 rounded-xl bg-forest-600 hover:bg-forest-700 text-cream-50 text-lg leading-none"
+                aria-label="논문 추가">+</button>
+      </div>
+      <div class="overflow-x-auto px-2 sm:px-4 pb-4">
+        <table class="w-full text-sm">
+          <thead class="text-left text-xs text-ink-muted">
+            <tr>
+              <th class="px-4 py-3 font-medium">논문 제목</th>
+              <th class="px-4 py-3 font-medium">학술지/학회</th>
+              <th class="px-4 py-3 font-medium">연도</th>
+              <th class="px-4 py-3 font-medium">역할</th>
+              <th class="px-4 py-3 font-medium">링크/상태</th>
+              <th class="px-4 py-3 font-medium text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody id="publicationBody" class="divide-y divide-cream-100"></tbody>
+        </table>
+      </div>
+      <p id="publicationEmpty" class="hidden px-8 py-12 text-center text-sm text-ink-faint">등록된 논문이 없습니다.</p>
+    </section>
+
+    <section class="lecture-card overflow-hidden">
+      <div class="px-6 sm:px-8 pt-6 pb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold tracking-tight">자격증</h2>
+          <p class="text-xs text-ink-faint mt-1">취득한 자격과 발행 기관</p>
+        </div>
+        <button type="button" data-open-form="certificate"
+                class="w-9 h-9 rounded-xl bg-forest-600 hover:bg-forest-700 text-cream-50 text-lg leading-none"
+                aria-label="자격증 추가">+</button>
+      </div>
+      <div class="overflow-x-auto px-2 sm:px-4 pb-4">
+        <table class="w-full text-sm">
+          <thead class="text-left text-xs text-ink-muted">
+            <tr>
+              <th class="px-4 py-3 font-medium">자격증명</th>
+              <th class="px-4 py-3 font-medium">발행 기관</th>
+              <th class="px-4 py-3 font-medium">취득일</th>
+              <th class="px-4 py-3 font-medium text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody id="certificateBody" class="divide-y divide-cream-100"></tbody>
+        </table>
+      </div>
+      <p id="certificateEmpty" class="hidden px-8 py-12 text-center text-sm text-ink-faint">등록된 자격증이 없습니다.</p>
+    </section>
+
+    <section class="lecture-card overflow-hidden">
+      <div class="px-6 sm:px-8 pt-6 pb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold tracking-tight">교육 경력</h2>
+          <p class="text-xs text-ink-faint mt-1">강의와 교육 활동</p>
+        </div>
+        <button type="button" data-open-form="teaching"
+                class="w-9 h-9 rounded-xl bg-forest-600 hover:bg-forest-700 text-cream-50 text-lg leading-none"
+                aria-label="교육 경력 추가">+</button>
+      </div>
+      <div class="overflow-x-auto px-2 sm:px-4 pb-4">
+        <table class="w-full text-sm">
+          <thead class="text-left text-xs text-ink-muted">
+            <tr>
+              <th class="px-4 py-3 font-medium">기관/학교</th>
+              <th class="px-4 py-3 font-medium">과목/강의</th>
+              <th class="px-4 py-3 font-medium">기간</th>
+              <th class="px-4 py-3 font-medium">역할</th>
+              <th class="px-4 py-3 font-medium text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody id="teachingBody" class="divide-y divide-cream-100"></tbody>
+        </table>
+      </div>
+      <p id="teachingEmpty" class="hidden px-8 py-12 text-center text-sm text-ink-faint">등록된 교육 경력이 없습니다.</p>
+    </section>
   </main>
+
+  <div id="vitaModal" class="lecture-modal hidden" role="dialog" aria-modal="true" aria-labelledby="vitaModalTitle">
+    <div class="lecture-modal-panel">
+      <h2 id="vitaModalTitle" class="text-base font-bold tracking-tight mb-4">항목 추가</h2>
+      <form id="vitaForm" class="space-y-3"></form>
+      <div class="flex justify-end gap-2 mt-5">
+        <button type="button" id="vitaModalCancel"
+                class="text-xs px-3 py-2 rounded-xl text-ink-muted hover:bg-cream-100">취소</button>
+        <button type="submit" form="vitaForm"
+                class="text-xs font-medium px-4 py-2 rounded-xl bg-forest-600 text-cream-50 hover:bg-forest-700">
+          추가
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="vita.js?v=20260831e"></script>
 </body>
 </html>
