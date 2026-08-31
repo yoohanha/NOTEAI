@@ -7,6 +7,7 @@
 
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -126,7 +127,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"
 
     class Config:
-        env_file = ".env"
+        # backend/.env 를 작업 디렉터리와 무관하게 읽습니다.
+        env_file = str(Path(__file__).resolve().parent.parent / ".env")
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
 
