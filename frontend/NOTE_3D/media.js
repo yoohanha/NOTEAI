@@ -2,15 +2,12 @@
  * NOTE_3D 미디어 라이브러리
  *
  * - GET    /api/media
- * - POST   /api/media          multipart file
- * - GET    /api/media/{id}/file
- * - DELETE /api/media/{id}
  */
 
 const TOKEN_KEY = 'noteai_token';
 const ALLOWED_EXT = /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i;
 
-/** @type {{id:number, original_name:string, mime_type:string, kind:string, size_bytes:number, created_at:string, previewUrl?:string}[]} */
+/** @type {{id:number, original_name:string, mime_type:string, kind:string, size_bytes:number, created_at:string, public_url?:string, previewUrl?:string}[]} */
 let mediaItems = [];
 
 const $ = (id) => document.getElementById(id);
@@ -73,6 +70,10 @@ async function apiJson(path, options = {}) {
 
 async function loadPreviewUrl(item) {
   if (item.previewUrl) return item.previewUrl;
+  if (item.public_url) {
+    item.previewUrl = item.public_url;
+    return item.previewUrl;
+  }
   const token = getToken();
   const response = await fetch(`/api/media/${item.id}/file`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -106,7 +107,9 @@ function createFallbackIcon(kind) {
 
 function revokePreviews() {
   mediaItems.forEach((item) => {
-    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
   });
 }
 
@@ -271,7 +274,9 @@ async function handleDelete(item, button) {
   button.disabled = true;
   try {
     await apiJson(`/api/media/${item.id}`, { method: 'DELETE' });
-    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
     mediaItems = mediaItems.filter((row) => row.id !== item.id);
     renderTable();
     setStatus('파일을 삭제했습니다.');

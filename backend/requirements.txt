@@ -26,6 +26,7 @@ requests==2.31.0
 
 # 유틸리티
 python-dotenv==1.0.0
+cloudinary==1.41.0
 PyYAML==6.0.1
 defusedxml==0.7.1
 

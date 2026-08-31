@@ -8,7 +8,7 @@ NOTE_3D 미디어 API
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -67,13 +67,16 @@ async def download_media(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """소유한 미디어 파일 본문을 반환합니다."""
+    """소유한 미디어 파일 본문 또는 클라우드 주소로 보냅니다."""
     asset = media_service.get_owned(db, current_user, asset_id)
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다")
 
-    path = media_service.file_path(current_user, asset)
-    if not path.exists():
+    if getattr(asset, "public_url", ""):
+        return RedirectResponse(asset.public_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    path = media_service.file_path(asset)
+    if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저장된 파일이 없습니다")
 
     return FileResponse(

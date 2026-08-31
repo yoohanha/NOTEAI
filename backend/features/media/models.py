@@ -20,8 +20,11 @@ class MediaAsset(Base):
 
     # 화면에 보여줄 원본 파일명
     original_name = Column(String(255), nullable=False)
-    # 디스크에 저장된 파일 이름 (uuid + 확장자)
+    # 디스크에 저장된 파일 이름 또는 Cloudinary public_id
     stored_name = Column(String(255), nullable=False)
+    # Cloudinary(또는 호환 CDN)가 준 영구 HTTPS 주소
+    public_url = Column(String(512), nullable=False, default="")
+    cloudinary_id = Column(String(255), nullable=False, default="")
     mime_type = Column(String(100), nullable=False)
     kind = Column(String(20), nullable=False, index=True)  # image | video
     size_bytes = Column(Integer, nullable=False, default=0)

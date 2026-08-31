@@ -22,9 +22,8 @@ class Settings(BaseSettings):
     SERVER_PORT: int = 8000
 
     # 데이터베이스
-    # SQLite 상대 경로는 backend/data/ 아래로 고정됩니다.
-    # 프로덕션에서는 PostgreSQL URL을 쓰세요.
-    # 예: postgresql://user:password@localhost/noteai
+    # 로컬 개발: SQLite. Render/프로덕션: PostgreSQL URL 필수.
+    # Render Internal DB, Supabase, Neon 모두 postgresql:// 형식이면 됩니다.
     DATABASE_URL: str = "sqlite:///./noteai.db"
     # SQLite 파일을 둘 디렉터리 (상대 경로면 backend/ 기준)
     DATA_DIR: str = "./data"
@@ -50,6 +49,11 @@ class Settings(BaseSettings):
     MEDIA_MAX_UPLOAD_SIZE: int = 40 * 1024 * 1024  # NOTE_3D 동영상용
     LECTURE_MAX_UPLOAD_SIZE: int = 80 * 1024 * 1024  # NOTE_LECTURE 교안
     UPLOAD_DIR: str = "./uploads"
+
+    # Cloudinary (Render 디스크가 날아도 파일이 남도록)
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     # AI/NLP 설정
     AI_MODEL_NAME: str = "facebook/bart-large-cnn"  # 요약용 모델

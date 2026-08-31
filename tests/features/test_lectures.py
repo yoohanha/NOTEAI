@@ -49,6 +49,7 @@ def test_upload_list_preview_and_delete_file(client, auth_headers):
     material = uploaded.json()["data"]
     assert material["extension"] == "pdf"
     assert material["original_name"] == "week1.pdf"
+    assert "public_url" in material
 
     detail = client.get(f"/api/lectures/{course['id']}", headers=auth_headers)
     assert detail.status_code == 200

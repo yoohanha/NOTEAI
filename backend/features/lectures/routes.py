@@ -11,7 +11,7 @@ NOTE_LECTURE API
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -149,13 +149,16 @@ async def download_material(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """소유한 교안 파일 본문을 반환합니다."""
+    """소유한 교안 본문 또는 클라우드 주소로 보냅니다."""
     material = lecture_service.get_owned_material(db, current_user, course_id, file_id)
     if not material:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파일을 찾을 수 없습니다")
 
-    path = lecture_service.file_path(current_user, material)
-    if not path.exists():
+    if getattr(material, "public_url", ""):
+        return RedirectResponse(material.public_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    path = lecture_service.file_path(material)
+    if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저장된 파일이 없습니다")
 
     return FileResponse(

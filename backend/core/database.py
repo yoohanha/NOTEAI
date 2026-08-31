@@ -5,10 +5,11 @@
 - Base 클래스
 """
 
+import os
 from pathlib import Path
 from typing import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool, StaticPool
@@ -16,13 +17,22 @@ from sqlalchemy.pool import NullPool, StaticPool
 from core.config import settings
 
 
+def is_hosted_runtime() -> bool:
+    """Render / Railway / Fly 등 디스크가 휘발성인 호스팅인지 확인합니다."""
+    return bool(
+        os.environ.get("RENDER")
+        or os.environ.get("RAILWAY_ENVIRONMENT")
+        or os.environ.get("FLY_APP_NAME")
+    )
+
+
 def resolve_database_url(raw_url: str) -> str:
     """
     DB URL을 SQLAlchemy가 바로 쓸 수 있는 형태로 정규화합니다.
 
-    - Render/Heroku의 postgres:// 를 postgresql:// 로 바꿉니다.
-    - 파일 SQLite는 backend/data/ 아래 절대 경로로 고정해
-      작업 디렉터리가 바뀌어도 같은 DB 파일을 보게 합니다.
+    - Render/Heroku의 postgres:// 를 postgresql+psycopg2:// 로 바꿉니다.
+    - Supabase 호스트에는 sslmode=require 를 붙입니다.
+    - 파일 SQLite는 backend/data/ 아래 절대 경로로 고정합니다.
     """
     url = (raw_url or "").strip()
     if not url:
@@ -32,24 +42,35 @@ def resolve_database_url(raw_url: str) -> str:
         url = "postgresql://" + url[len("postgres://") :]
 
     parsed = make_url(url)
-    if not str(parsed.drivername).startswith("sqlite"):
-        return url
+    driver = str(parsed.drivername)
 
-    database = parsed.database or ""
-    if not database or database == ":memory:":
-        return url
+    if driver.startswith("sqlite"):
+        database = parsed.database or ""
+        if not database or database == ":memory:":
+            return url
 
-    db_path = Path(database)
-    if not db_path.is_absolute():
-        backend_root = Path(__file__).resolve().parent.parent
-        data_dir = Path(settings.DATA_DIR)
-        if not data_dir.is_absolute():
-            data_dir = backend_root / data_dir
-        data_dir.mkdir(parents=True, exist_ok=True)
-        db_path = data_dir / db_path.name
+        db_path = Path(database)
+        if not db_path.is_absolute():
+            backend_root = Path(__file__).resolve().parent.parent
+            data_dir = Path(settings.DATA_DIR)
+            if not data_dir.is_absolute():
+                data_dir = backend_root / data_dir
+            data_dir.mkdir(parents=True, exist_ok=True)
+            db_path = data_dir / db_path.name
 
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{db_path.resolve().as_posix()}"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{db_path.resolve().as_posix()}"
+
+    if driver in ("postgresql", "postgres"):
+        parsed = parsed.set(drivername="postgresql+psycopg2")
+
+    host = (parsed.host or "").lower()
+    query = dict(parsed.query)
+    if "supabase" in host and "sslmode" not in query:
+        query["sslmode"] = "require"
+        parsed = parsed.set(query=query)
+
+    return parsed.render_as_string(hide_password=False)
 
 
 DATABASE_URL = resolve_database_url(settings.DATABASE_URL)
@@ -68,6 +89,12 @@ if _IS_SQLITE:
     else:
         # 파일 DB는 요청이 끝날 때 연결을 닫아 커밋이 디스크에 반영되게 합니다.
         _engine_kwargs["poolclass"] = NullPool
+else:
+    # Postgres는 연결이 끊겨도 다시 붙도록 풀을 점검합니다.
+    _engine_kwargs["pool_pre_ping"] = True
+    _engine_kwargs["pool_recycle"] = 280
+    _engine_kwargs["pool_size"] = 5
+    _engine_kwargs["max_overflow"] = 5
 
 engine = create_engine(
     DATABASE_URL,
@@ -111,6 +138,31 @@ def get_db() -> Generator:
         db.close()
 
 
+def require_persistent_database() -> None:
+    """
+    Render처럼 디스크가 날아가는 환경에서 SQLite를 쓰면
+    회원/노트/이력이 재배포마다 사라집니다. 기동을 막아 실수를 알립니다.
+    """
+    if not is_hosted_runtime():
+        return
+    if _IS_SQLITE:
+        raise RuntimeError(
+            "호스팅 환경에서 SQLite는 재배포마다 회원 데이터가 사라집니다. "
+            "Render Postgres 또는 Supabase의 DATABASE_URL(postgresql://...)을 설정하세요."
+        )
+
+
+def _describe_database() -> str:
+    """로그에 비밀번호 없이 DB 종류를 남깁니다."""
+    parsed = make_url(DATABASE_URL)
+    if str(parsed.drivername).startswith("sqlite"):
+        return f"SQLite file={parsed.database}"
+    return (
+        f"PostgreSQL host={parsed.host} db={parsed.database} "
+        f"user={parsed.username}"
+    )
+
+
 def register_models():
     """
     모든 ORM 모델을 import하여 SQLAlchemy 레지스트리에 등록
@@ -133,14 +185,39 @@ def register_models():
     from features.vita.models import VitaCertificate, VitaPublication, VitaTeaching
 
 
+def _ensure_upload_url_columns():
+    """
+    이미 만들어진 테이블에 Cloudinary URL 컬럼을 추가합니다.
+
+    create_all은 새 테이블만 만들고 기존 테이블에는 컬럼을 넣지 않습니다.
+    """
+    inspector = inspect(engine)
+    specs = (
+        ("media_assets", "public_url", "VARCHAR(512) DEFAULT ''"),
+        ("media_assets", "cloudinary_id", "VARCHAR(255) DEFAULT ''"),
+        ("lecture_materials", "public_url", "VARCHAR(512) DEFAULT ''"),
+        ("lecture_materials", "cloudinary_id", "VARCHAR(255) DEFAULT ''"),
+    )
+    existing_tables = set(inspector.get_table_names())
+    for table, column, ddl in specs:
+        if table not in existing_tables:
+            continue
+        columns = {col["name"] for col in inspector.get_columns(table)}
+        if column in columns:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+
+
 def init_db():
     """
     데이터베이스 초기화 (애플리케이션 시작 시 호출)
     모든 테이블 생성
     """
+    require_persistent_database()
     register_models()
 
     Base.metadata.create_all(bind=engine)
+    _ensure_upload_url_columns()
     print("✅ 데이터베이스 초기화 완료")
-    if _IS_SQLITE and not _IS_MEMORY_SQLITE:
-        print(f"💾 SQLite 파일: {DATABASE_URL}")
+    print(f"💾 {_describe_database()}")

@@ -32,6 +32,7 @@ class MaterialResponse(BaseModel):
     mime_type: str
     extension: str
     size_bytes: int
+    public_url: str = ""
     created_at: datetime
 
     class Config:

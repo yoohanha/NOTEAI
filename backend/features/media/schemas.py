@@ -13,6 +13,7 @@ class MediaAssetResponse(BaseModel):
     mime_type: str
     kind: str = Field(..., description="image 또는 video")
     size_bytes: int
+    public_url: str = ""
     created_at: datetime
 
     class Config:

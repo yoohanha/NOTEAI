@@ -15,6 +15,7 @@ def test_upload_list_and_delete_image(client, auth_headers):
     asset = created.json()["data"]
     assert asset["kind"] == "image"
     assert asset["original_name"] == "sample.png"
+    assert "public_url" in asset
 
     listed = client.get("/api/media", headers=auth_headers)
     assert listed.status_code == 200
@@ -32,3 +33,19 @@ def test_rejects_unsupported_type(client, auth_headers):
     files = {"file": ("notes.exe", BytesIO(b"binary"), "application/octet-stream")}
     response = client.post("/api/media", files=files, headers=auth_headers)
     assert response.status_code == 400
+
+
+def test_stores_cloudinary_url_when_configured(client, auth_headers, monkeypatch):
+    def fake_upload(payload, *, folder, resource_type, filename):
+        return {
+            "url": "https://res.cloudinary.com/demo/image/upload/sample.png",
+            "public_id": f"{folder}/cloud-id",
+            "storage": "cloudinary",
+            "resource_type": resource_type,
+        }
+
+    monkeypatch.setattr("features.media.service.upload_bytes", fake_upload)
+    files = {"file": ("sample.png", BytesIO(b"\x89PNG\r\n\x1a\nfake"), "image/png")}
+    created = client.post("/api/media", files=files, headers=auth_headers)
+    assert created.status_code == 201
+    assert created.json()["data"]["public_url"].startswith("https://res.cloudinary.com/")

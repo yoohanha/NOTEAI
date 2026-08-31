@@ -1,12 +1,10 @@
 """
 NOTE_LECTURE 강좌 폴더와 교안 파일 저장/조회/삭제
 
-파일 본문은 uploads/lectures/{user_id}/{course_id}/ 아래에 두고,
-DB에는 목록 표시용 메타데이터만 남깁니다.
+교안 본문은 Cloudinary(raw)에 올리고 DB에는 secure_url을 저장합니다.
+키가 없으면 개발용 로컬 폴백을 씁니다.
 """
 
-import shutil
-import uuid
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -14,6 +12,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.storage import delete_stored, upload_bytes
 from features.auth.models import User
 from features.lectures.models import LectureCourse, LectureMaterial
 
@@ -31,33 +30,8 @@ ALLOWED_TYPES = {
 }
 
 
-def _lectures_root() -> Path:
-    """교안 업로드 루트를 절대 경로로 만듭니다."""
-    upload_dir = Path(settings.UPLOAD_DIR)
-    if not upload_dir.is_absolute():
-        upload_dir = Path(__file__).resolve().parents[2] / upload_dir
-    root = upload_dir / "lectures"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-def course_dir(user_id: int, course_id: int) -> Path:
-    """강좌 폴더의 디스크 경로를 보장합니다."""
-    path = _lectures_root() / str(user_id) / str(course_id)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def classify_file(filename: str, content_type: Optional[str]) -> Tuple[str, str]:
-    """
-    확장자로 MIME을 결정합니다.
-
-    Returns:
-        (확장자, mime_type)
-
-    Raises:
-        ValueError: 허용되지 않은 형식
-    """
+    """확장자로 MIME을 결정합니다."""
     suffix = Path(filename or "").suffix.lower()
     if suffix not in ALLOWED_TYPES:
         raise ValueError(
@@ -120,7 +94,6 @@ class LectureService:
         db.add(course)
         db.commit()
         db.refresh(course)
-        course_dir(user.id, course.id)
         return course
 
     @staticmethod
@@ -166,7 +139,7 @@ class LectureService:
     async def save_upload(
         db: Session, user: User, course: LectureCourse, file: UploadFile
     ) -> LectureMaterial:
-        """교안 파일을 검증한 뒤 디스크와 DB에 저장합니다."""
+        """교안 파일을 검증한 뒤 Cloudinary(또는 로컬)와 DB에 저장합니다."""
         suffix, mime = classify_file(file.filename, file.content_type)
         payload = await file.read()
         max_size = getattr(settings, "LECTURE_MAX_UPLOAD_SIZE", 80 * 1024 * 1024)
@@ -176,15 +149,20 @@ class LectureService:
         if len(payload) > max_size:
             raise ValueError("파일이 너무 큽니다. 80MB 이하만 올릴 수 있습니다.")
 
-        stored_name = f"{uuid.uuid4().hex}{suffix}"
-        dest = course_dir(user.id, course.id) / stored_name
-        dest.write_bytes(payload)
+        stored = upload_bytes(
+            payload,
+            folder=f"noteai/lectures/{user.id}/{course.id}",
+            resource_type="raw",
+            filename=file.filename or f"untitled{suffix}",
+        )
 
         material = LectureMaterial(
             course_id=course.id,
             user_id=user.id,
             original_name=(file.filename or f"untitled{suffix}")[:255],
-            stored_name=stored_name,
+            stored_name=stored["public_id"][:255],
+            public_url=(stored.get("url") or "")[:512],
+            cloudinary_id=stored["public_id"][:255] if stored.get("storage") == "cloudinary" else "",
             mime_type=mime,
             extension=suffix.lstrip("."),
             size_bytes=len(payload),
@@ -195,22 +173,28 @@ class LectureService:
         return material
 
     @staticmethod
-    def file_path(user: User, material: LectureMaterial) -> Path:
-        return course_dir(user.id, material.course_id) / material.stored_name
+    def file_path(material: LectureMaterial) -> Optional[Path]:
+        """로컬 폴백 파일이 있으면 경로를 반환합니다."""
+        if getattr(material, "public_url", ""):
+            return None
+        if not material.stored_name:
+            return None
+        upload_dir = Path(settings.UPLOAD_DIR)
+        if not upload_dir.is_absolute():
+            upload_dir = Path(__file__).resolve().parents[2] / upload_dir
+        path = upload_dir / material.stored_name
+        return path if path.exists() else None
 
     @staticmethod
     def delete_material(
         db: Session, user: User, course_id: int, material_id: int
     ) -> bool:
-        """교안 한 건을 DB와 디스크에서 삭제합니다."""
+        """교안 한 건을 DB와 클라우드/디스크에서 삭제합니다."""
         material = LectureService.get_owned_material(db, user, course_id, material_id)
         if not material:
             return False
 
-        path = LectureService.file_path(user, material)
-        if path.exists():
-            path.unlink()
-
+        delete_stored(material.cloudinary_id or material.stored_name, "raw")
         db.delete(material)
         db.commit()
         return True
@@ -224,14 +208,8 @@ class LectureService:
 
         materials = LectureService.list_materials(db, user, course_id)
         for material in materials:
-            path = LectureService.file_path(user, material)
-            if path.exists():
-                path.unlink()
+            delete_stored(material.cloudinary_id or material.stored_name, "raw")
             db.delete(material)
-
-        folder = _lectures_root() / str(user.id) / str(course_id)
-        if folder.exists():
-            shutil.rmtree(folder, ignore_errors=True)
 
         db.delete(course)
         db.commit()

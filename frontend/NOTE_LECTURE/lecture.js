@@ -359,6 +359,25 @@ async function handleDeleteFile(item, button) {
 
 async function openFile(item) {
   if (!currentCourse) return;
+
+  if (item.public_url) {
+    if (item.extension === 'pdf') {
+      const modal = $('previewModal');
+      const box = $('previewModalBody');
+      box.replaceChildren();
+      const frame = document.createElement('iframe');
+      frame.src = item.public_url;
+      frame.title = item.original_name;
+      frame.className = 'lecture-preview-frame';
+      box.appendChild(frame);
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+    window.open(item.public_url, '_blank', 'noopener');
+    return;
+  }
+
   const token = getToken();
   const response = await fetch(
     `/api/lectures/${currentCourse.id}/files/${item.id}`,

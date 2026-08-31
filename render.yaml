@@ -1,12 +1,19 @@
 # NOTEAI — Render Blueprint
 # 대시보드: https://dashboard.render.com → New → Blueprint
-# 이 파일이 저장소 루트에 있어야 Render가 서비스를 자동 생성합니다.
 #
-# 무료 웹 서비스 참고
-# - 약 15분 미사용 시 슬립합니다. 첫 요청은 깨어나는 데 시간이 걸립니다.
-# - 무료 플랜 디스크는 유지되지 않습니다. SQLite면 재시작 후 계정이 사라집니다.
-#   회원가입을 유지하려면 Render Postgres를 만들고 DATABASE_URL을 덮어쓰세요.
-# - JWT_SECRET_KEY는 최초 생성 값을 유지해야 기존 로그인이 유효합니다.
+# 회원/노트/이력이 재배포 후에도 남으려면 PostgreSQL이 필요합니다.
+# 이 Blueprint는 noteai-db Postgres를 만들고 DATABASE_URL을 웹 서비스에 연결합니다.
+# JWT_SECRET_KEY는 한 번 생성된 값을 유지하세요. 바꾸면 기존 로그인이 전부 풀립니다.
+#
+# Supabase를 쓰려면 이 databases 블록 대신 대시보드에서
+# DATABASE_URL=postgresql://... (Supabase URI) 를 직접 넣으면 됩니다.
+
+databases:
+  - name: noteai-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: noteai
+    user: noteai
 
 services:
   - type: web
@@ -16,7 +23,6 @@ services:
     region: oregon
 
     # 저장소 전체는 클론되고, 빌드/기동 작업 디렉터리만 backend/ 입니다.
-    # main.py의 FRONTEND_PATH(../frontend)는 그대로 동작합니다.
     rootDir: backend
 
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
@@ -33,15 +39,23 @@ services:
         value: "false"
 
       - key: DATABASE_URL
-        value: sqlite:///./noteai.db
+        fromDatabase:
+          name: noteai-db
+          property: connectionString
 
-      # 매 Blueprint 생성마다 새 시크릿을 발급합니다.
       - key: JWT_SECRET_KEY
         generateValue: true
 
       - key: JWT_ALGORITHM
         value: HS256
 
-      # 웹 프로세스 기동 시 수집 워커를 함께 띄웁니다.
       - key: MONITOR_AUTOSTART
         value: "true"
+
+      # Cloudinary — 대시보드에서 값을 넣으세요. 비우면 업로드가 로컬로 폴백되어 재배포 시 사라집니다.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
