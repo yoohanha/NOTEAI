@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from features.auth.deps import get_current_user
+from features.auth.deps import get_current_admin, get_current_user
 from features.auth.models import User
 from features.media.schemas import MediaAssetResponse
 from features.media.service import media_service
@@ -89,10 +89,10 @@ async def download_media(
 @router.delete("/{asset_id}", response_model=dict)
 async def delete_media(
     asset_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """미디어를 목록과 디스크에서 삭제합니다."""
+    """미디어 삭제는 관리자만 할 수 있습니다."""
     deleted = media_service.delete_asset(db, current_user, asset_id)
     if not deleted:
         raise HTTPException(

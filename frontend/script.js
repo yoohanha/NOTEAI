@@ -80,6 +80,9 @@ let refreshTimer = null;
 // 현재 열려 있는 탭 - 자동 새로고침 대상 판단에 사용
 let activeView = 'monitor';
 
+// 삭제 버튼은 관리자 이메일 계정에만 켭니다.
+let currentUserIsAdmin = false;
+
 // ============ 유틸 ============
 
 /**
@@ -108,6 +111,23 @@ function saveSession(token) {
  */
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
+  currentUserIsAdmin = false;
+}
+
+/**
+ * 서버가 준 is_admin 플래그로 삭제 권한을 맞춥니다.
+ * @param {Object|null} user
+ */
+function applyUserRole(user) {
+  currentUserIsAdmin = Boolean(user && user.is_admin);
+}
+
+/**
+ * 삭제 버튼을 그릴 수 있는 관리자인지 확인합니다.
+ * @returns {boolean}
+ */
+function canDeleteContent() {
+  return currentUserIsAdmin === true;
 }
 
 /**
@@ -130,7 +150,8 @@ async function restoreSession() {
   }
 
   try {
-    await apiFetch('/api/auth/me');
+    const me = await apiFetch('/api/auth/me');
+    applyUserRole(me);
     applyRouteFromHash();
   } catch (_error) {
     clearSession();
@@ -816,6 +837,7 @@ async function handleLogin(event) {
     });
 
     saveSession(data.access_token);
+    applyUserRole(data.user);
     $('password').value = '';
     showMatrix();
   } catch (error) {
@@ -875,6 +897,7 @@ async function handleSignup(event) {
     });
 
     saveSession(data.access_token);
+    applyUserRole(data.user);
 
     // 비밀번호가 DOM에 남지 않도록 폼 초기화
     $('signupForm').reset();

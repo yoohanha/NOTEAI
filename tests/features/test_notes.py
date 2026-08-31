@@ -303,25 +303,36 @@ class TestDeleteNote:
     """노트 삭제 테스트"""
 
     def test_delete_note_success(
-        self, client: TestClient, auth_headers, test_note
+        self, client: TestClient, admin_headers, db: Session, admin_user
     ):
         """
-        노트 삭제 성공 (소프트 삭제)
+        관리자가 자신의 노트를 삭제합니다.
 
         DELETE /api/notes/{note_id}
         응답: 200 OK
         """
-        # When: 노트 삭제 요청
+        from conftest import create_test_note
+
+        note = create_test_note(db, admin_user.id, title="Admin Note", content="keep data")
+        response = client.delete(
+            f"/api/notes/{note.id}",
+            headers=admin_headers
+        )
+
+        assert response.status_code == 200
+        assert response.json()["message"] == "Note deleted successfully"
+        assert response.json()["data"]["id"] == note.id
+        assert response.json()["data"]["deleted"] is True
+
+    def test_regular_user_cannot_delete_own_note(
+        self, client: TestClient, auth_headers, test_note
+    ):
         response = client.delete(
             f"/api/notes/{test_note.id}",
             headers=auth_headers
         )
-
-        # Then: 200 OK
-        assert response.status_code == 200
-        assert response.json()["message"] == "Note deleted successfully"
-        assert response.json()["data"]["id"] == test_note.id
-        assert response.json()["data"]["deleted"] is True
+        assert response.status_code == 403
+        assert response.json()["detail"] == "접근 권한이 없습니다"
 
     def test_delete_others_note_forbidden(
         self, client: TestClient, test_note, test_another_user

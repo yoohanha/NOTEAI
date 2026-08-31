@@ -9,6 +9,7 @@ const ALLOWED_EXT = /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i;
 
 /** @type {{id:number, original_name:string, mime_type:string, kind:string, size_bytes:number, created_at:string, public_url?:string, previewUrl?:string}[]} */
 let mediaItems = [];
+let canDelete = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -185,13 +186,15 @@ function renderTable() {
 
     const actions = document.createElement('td');
     actions.className = 'px-4 py-5 text-right';
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className =
-      'text-xs font-medium text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-100 px-3 py-1.5 rounded-xl';
-    del.textContent = '삭제';
-    del.addEventListener('click', () => handleDelete(item, del));
-    actions.appendChild(del);
+    if (canDelete) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className =
+        'text-xs font-medium text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-100 px-3 py-1.5 rounded-xl';
+      del.textContent = '삭제';
+      del.addEventListener('click', () => handleDelete(item, del));
+      actions.appendChild(del);
+    }
 
     row.append(previewCell, name, kind, size, date, actions);
     fragment.appendChild(row);
@@ -270,6 +273,7 @@ async function uploadFiles(fileList) {
 }
 
 async function handleDelete(item, button) {
+  if (!canDelete) return;
   if (!window.confirm(`「${item.original_name}」을(를) 삭제할까요?`)) return;
   button.disabled = true;
   try {
@@ -334,6 +338,8 @@ async function initMediaPage() {
   });
 
   try {
+    const me = await apiJson('/api/auth/me');
+    canDelete = Boolean(me && me.is_admin);
     await refreshList();
   } catch (error) {
     showError(error.message);

@@ -7,9 +7,9 @@ def test_media_requires_auth(client):
     assert client.get("/api/media").status_code in (401, 403)
 
 
-def test_upload_list_and_delete_image(client, auth_headers):
+def test_upload_list_and_delete_image(client, admin_headers):
     files = {"file": ("sample.png", BytesIO(b"\x89PNG\r\n\x1a\nfake"), "image/png")}
-    created = client.post("/api/media", files=files, headers=auth_headers)
+    created = client.post("/api/media", files=files, headers=admin_headers)
 
     assert created.status_code == 201
     asset = created.json()["data"]
@@ -17,16 +17,26 @@ def test_upload_list_and_delete_image(client, auth_headers):
     assert asset["original_name"] == "sample.png"
     assert "public_url" in asset
 
-    listed = client.get("/api/media", headers=auth_headers)
+    listed = client.get("/api/media", headers=admin_headers)
     assert listed.status_code == 200
     assert listed.json()["data"]["total"] == 1
 
-    file_res = client.get(f"/api/media/{asset['id']}/file", headers=auth_headers)
+    file_res = client.get(f"/api/media/{asset['id']}/file", headers=admin_headers)
     assert file_res.status_code == 200
 
-    deleted = client.delete(f"/api/media/{asset['id']}", headers=auth_headers)
+    deleted = client.delete(f"/api/media/{asset['id']}", headers=admin_headers)
     assert deleted.status_code == 200
-    assert client.get("/api/media", headers=auth_headers).json()["data"]["total"] == 0
+    assert client.get("/api/media", headers=admin_headers).json()["data"]["total"] == 0
+
+
+def test_regular_user_cannot_delete_media(client, auth_headers):
+    files = {"file": ("sample.png", BytesIO(b"\x89PNG\r\n\x1a\nfake"), "image/png")}
+    created = client.post("/api/media", files=files, headers=auth_headers)
+    assert created.status_code == 201
+    asset_id = created.json()["data"]["id"]
+    blocked = client.delete(f"/api/media/{asset_id}", headers=auth_headers)
+    assert blocked.status_code == 403
+    assert client.get("/api/media", headers=auth_headers).json()["data"]["total"] == 1
 
 
 def test_rejects_unsupported_type(client, auth_headers):

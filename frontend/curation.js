@@ -239,16 +239,18 @@ function createNoteRow(note) {
 
   header.appendChild(textCol);
 
-  const deleteBtn = document.createElement('button');
-  deleteBtn.type = 'button';
-  deleteBtn.dataset.role = 'delete-note';
-  deleteBtn.className =
-    'shrink-0 self-start text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 ' +
-    'border border-red-200 px-2.5 py-1 rounded-lg transition';
-  deleteBtn.setAttribute('aria-label', '노트 삭제');
-  deleteBtn.title = '이 노트를 삭제합니다';
-  deleteBtn.textContent = '삭제';
-  header.appendChild(deleteBtn);
+  if (typeof canDeleteContent === 'function' && canDeleteContent()) {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.dataset.role = 'delete-note';
+    deleteBtn.className =
+      'shrink-0 self-start text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 ' +
+      'border border-red-200 px-2.5 py-1 rounded-lg transition';
+    deleteBtn.setAttribute('aria-label', '노트 삭제');
+    deleteBtn.title = '이 노트를 삭제합니다';
+    deleteBtn.textContent = '삭제';
+    header.appendChild(deleteBtn);
+  }
 
   row.appendChild(header);
 
@@ -460,6 +462,9 @@ async function handleSaveTrend(item, button) {
  * @param {HTMLButtonElement} button - 클릭된 삭제 버튼
  */
 async function handleDeleteNote(note, button) {
+  if (typeof canDeleteContent === 'function' && !canDeleteContent()) {
+    return;
+  }
   const title = note.title || '이 노트';
   if (!window.confirm(`「${title}」을(를) 삭제할까요?`)) {
     return;

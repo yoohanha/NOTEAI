@@ -7,24 +7,24 @@ def test_lectures_require_auth(client):
     assert client.get("/api/lectures").status_code in (401, 403)
 
 
-def test_create_list_and_delete_course(client, auth_headers):
+def test_create_list_and_delete_course(client, admin_headers):
     created = client.post(
         "/api/lectures",
         json={"name": "  머신러닝 개론  "},
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert created.status_code == 201
     course = created.json()["data"]
     assert course["name"] == "머신러닝 개론"
     assert course["file_count"] == 0
 
-    listed = client.get("/api/lectures", headers=auth_headers)
+    listed = client.get("/api/lectures", headers=admin_headers)
     assert listed.status_code == 200
     assert listed.json()["data"]["total"] == 1
 
-    deleted = client.delete(f"/api/lectures/{course['id']}", headers=auth_headers)
+    deleted = client.delete(f"/api/lectures/{course['id']}", headers=admin_headers)
     assert deleted.status_code == 200
-    assert client.get("/api/lectures", headers=auth_headers).json()["data"]["total"] == 0
+    assert client.get("/api/lectures", headers=admin_headers).json()["data"]["total"] == 0
 
 
 def test_rejects_empty_course_name(client, auth_headers):
@@ -32,18 +32,18 @@ def test_rejects_empty_course_name(client, auth_headers):
     assert response.status_code == 400
 
 
-def test_upload_list_preview_and_delete_file(client, auth_headers):
+def test_upload_list_preview_and_delete_file(client, admin_headers):
     course = client.post(
         "/api/lectures",
         json={"name": "자료구조"},
-        headers=auth_headers,
+        headers=admin_headers,
     ).json()["data"]
 
     files = {"file": ("week1.pdf", BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
     uploaded = client.post(
         f"/api/lectures/{course['id']}/files",
         files=files,
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert uploaded.status_code == 201
     material = uploaded.json()["data"]
@@ -51,7 +51,7 @@ def test_upload_list_preview_and_delete_file(client, auth_headers):
     assert material["original_name"] == "week1.pdf"
     assert "public_url" in material
 
-    detail = client.get(f"/api/lectures/{course['id']}", headers=auth_headers)
+    detail = client.get(f"/api/lectures/{course['id']}", headers=admin_headers)
     assert detail.status_code == 200
     payload = detail.json()["data"]
     assert payload["course"]["file_count"] == 1
@@ -59,16 +59,16 @@ def test_upload_list_preview_and_delete_file(client, auth_headers):
 
     downloaded = client.get(
         f"/api/lectures/{course['id']}/files/{material['id']}",
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert downloaded.status_code == 200
 
     removed = client.delete(
         f"/api/lectures/{course['id']}/files/{material['id']}",
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert removed.status_code == 200
-    leftover = client.get(f"/api/lectures/{course['id']}", headers=auth_headers)
+    leftover = client.get(f"/api/lectures/{course['id']}", headers=admin_headers)
     assert leftover.json()["data"]["course"]["file_count"] == 0
 
 
@@ -87,26 +87,37 @@ def test_rejects_unsupported_lecture_file(client, auth_headers):
     assert response.status_code == 400
 
 
-def test_delete_course_removes_files(client, auth_headers):
+def test_delete_course_removes_files(client, admin_headers):
     course = client.post(
         "/api/lectures",
         json={"name": "운영체제"},
-        headers=auth_headers,
+        headers=admin_headers,
     ).json()["data"]
     files = {"file": ("ch1.pptx", BytesIO(b"PK fake"), "application/vnd.openxmlformats-officedocument.presentationml.presentation")}
     uploaded = client.post(
         f"/api/lectures/{course['id']}/files",
         files=files,
-        headers=auth_headers,
+        headers=admin_headers,
     )
     file_id = uploaded.json()["data"]["id"]
 
-    assert client.delete(f"/api/lectures/{course['id']}", headers=auth_headers).status_code == 200
+    assert client.delete(f"/api/lectures/{course['id']}", headers=admin_headers).status_code == 200
     missing = client.get(
         f"/api/lectures/{course['id']}/files/{file_id}",
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert missing.status_code == 404
+
+
+def test_regular_user_cannot_delete_course(client, auth_headers):
+    course = client.post(
+        "/api/lectures",
+        json={"name": "일반 사용자 강좌"},
+        headers=auth_headers,
+    ).json()["data"]
+    blocked = client.delete(f"/api/lectures/{course['id']}", headers=auth_headers)
+    assert blocked.status_code == 403
+    assert client.get("/api/lectures", headers=auth_headers).json()["data"]["total"] == 1
 
 
 def test_stores_cloudinary_url_for_lecture_file(client, auth_headers, monkeypatch):

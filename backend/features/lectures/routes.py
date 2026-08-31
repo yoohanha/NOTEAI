@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from features.auth.deps import get_current_user
+from features.auth.deps import get_current_admin, get_current_user
 from features.auth.models import User
 from features.lectures.schemas import CourseCreate, CourseResponse, MaterialResponse
 from features.lectures.service import lecture_service
@@ -100,10 +100,10 @@ async def get_course(
 @router.delete("/{course_id}", response_model=dict)
 async def delete_course(
     course_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """강좌 폴더와 안의 교안을 모두 삭제합니다."""
+    """강좌 폴더 삭제는 관리자만 할 수 있습니다."""
     deleted = lecture_service.delete_course(db, current_user, course_id)
     if not deleted:
         raise HTTPException(
@@ -172,10 +172,10 @@ async def download_material(
 async def delete_material(
     course_id: int,
     file_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """교안 한 건을 목록과 디스크에서 삭제합니다."""
+    """교안 삭제는 관리자만 할 수 있습니다."""
     deleted = lecture_service.delete_material(db, current_user, course_id, file_id)
     if not deleted:
         raise HTTPException(

@@ -164,6 +164,31 @@ def auth_headers(test_user_token):
 
 
 @pytest.fixture(scope="function")
+def admin_user(db: Session):
+    """관리자 이메일 계정. 삭제 API 테스트에 사용합니다."""
+    user = User(
+        username="yuhanadmin",
+        email=settings.ADMIN_EMAIL,
+        password_hash=hash_password("AdminPass123"),
+        full_name="Admin",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture(scope="function")
+def admin_headers(admin_user):
+    """관리자 JWT 헤더"""
+    token = create_access_token(
+        {"user_id": admin_user.id, "username": admin_user.username}
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="function")
 def test_note_data():
     """테스트용 노트 데이터"""
     return {

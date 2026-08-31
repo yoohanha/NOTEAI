@@ -15,6 +15,7 @@ const state = {
 };
 
 let activeForm = 'publication';
+let canDelete = false;
 
 const FORMS = {
   publication: {
@@ -108,6 +109,7 @@ async function apiJson(path, options = {}) {
 }
 
 function deleteButton(kind, id) {
+  if (!canDelete) return null;
   const button = document.createElement('button');
   button.type = 'button';
   button.className =
@@ -146,7 +148,8 @@ function renderAll() {
       <td class="px-4 py-4 text-ink-muted">${linkHtml}</td>
       <td class="px-4 py-4 text-right"></td>
     `;
-    row.lastElementChild.appendChild(deleteButton('publications', item.id));
+    const pubDel = deleteButton('publications', item.id);
+    if (pubDel) row.lastElementChild.appendChild(pubDel);
     return row;
   });
 
@@ -158,7 +161,8 @@ function renderAll() {
       <td class="px-4 py-4 text-ink-muted whitespace-nowrap">${escapeHtml(item.acquired_on || '–')}</td>
       <td class="px-4 py-4 text-right"></td>
     `;
-    row.lastElementChild.appendChild(deleteButton('certificates', item.id));
+    const certDel = deleteButton('certificates', item.id);
+    if (certDel) row.lastElementChild.appendChild(certDel);
     return row;
   });
 
@@ -171,7 +175,8 @@ function renderAll() {
       <td class="px-4 py-4 text-ink-muted">${escapeHtml(item.role || '–')}</td>
       <td class="px-4 py-4 text-right"></td>
     `;
-    row.lastElementChild.appendChild(deleteButton('teachings', item.id));
+    const teachDel = deleteButton('teachings', item.id);
+    if (teachDel) row.lastElementChild.appendChild(teachDel);
     return row;
   });
 }
@@ -228,6 +233,7 @@ async function handleSubmit(event) {
 }
 
 async function handleDelete(kind, id, button) {
+  if (!canDelete) return;
   if (!window.confirm('이 항목을 삭제할까요?')) return;
   button.disabled = true;
   try {
@@ -260,6 +266,8 @@ async function initVitaPage() {
   });
 
   try {
+    const me = await apiJson('/api/auth/me');
+    canDelete = Boolean(me && me.is_admin);
     const data = await apiJson('/api/vita');
     state.publications = data.publications || [];
     state.certificates = data.certificates || [];

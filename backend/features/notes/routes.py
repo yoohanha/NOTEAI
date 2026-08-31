@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from core.database import get_db
 from features.auth.models import User
-from features.auth.deps import get_current_user, get_current_user_optional
+from features.auth.deps import get_current_admin, get_current_user, get_current_user_optional
 from features.notes.models import Note
 from features.notes.schemas import (
     NoteCreate,
@@ -171,15 +171,15 @@ async def update_note(
 @router.delete("/{note_id}", response_model=dict)
 async def delete_note(
     note_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     """
-    노트 삭제 (작성자만 가능)
+    노트 삭제 (관리자만 가능)
 
     Args:
         note_id: 노트 ID
-        current_user: 현재 사용자
+        current_user: 관리자
         db: 데이터베이스 세션
 
     Returns:

@@ -5,7 +5,7 @@ def test_vita_requires_auth(client):
     assert client.get("/api/vita").status_code in (401, 403)
 
 
-def test_publication_create_and_delete(client, auth_headers):
+def test_publication_create_and_delete(client, admin_headers):
     created = client.post(
         "/api/vita/publications",
         json={
@@ -15,19 +15,19 @@ def test_publication_create_and_delete(client, auth_headers):
             "role": "제1저자",
             "link_or_status": "https://example.com/p",
         },
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert created.status_code == 201
     item = created.json()["data"]
     assert item["title"] == "Graph Notes"
 
-    listed = client.get("/api/vita", headers=auth_headers)
+    listed = client.get("/api/vita", headers=admin_headers)
     assert listed.status_code == 200
     assert len(listed.json()["data"]["publications"]) == 1
 
-    deleted = client.delete(f"/api/vita/publications/{item['id']}", headers=auth_headers)
+    deleted = client.delete(f"/api/vita/publications/{item['id']}", headers=admin_headers)
     assert deleted.status_code == 200
-    assert client.get("/api/vita", headers=auth_headers).json()["data"]["publications"] == []
+    assert client.get("/api/vita", headers=admin_headers).json()["data"]["publications"] == []
 
 
 def test_rejects_empty_publication_title(client, auth_headers):
@@ -39,11 +39,11 @@ def test_rejects_empty_publication_title(client, auth_headers):
     assert response.status_code == 400
 
 
-def test_certificate_and_teaching_flow(client, auth_headers):
+def test_certificate_and_teaching_flow(client, admin_headers):
     cert = client.post(
         "/api/vita/certificates",
         json={"name": "정보처리기사", "organization": "HRDK", "acquired_on": "2024-05-01"},
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert cert.status_code == 201
 
@@ -55,19 +55,32 @@ def test_certificate_and_teaching_flow(client, auth_headers):
             "period": "2024-2025",
             "role": "강사",
         },
-        headers=auth_headers,
+        headers=admin_headers,
     )
     assert teach.status_code == 201
 
-    listed = client.get("/api/vita", headers=auth_headers).json()["data"]
+    listed = client.get("/api/vita", headers=admin_headers).json()["data"]
     assert listed["certificates"][0]["name"] == "정보처리기사"
     assert listed["teachings"][0]["institution"] == "NoteAI Univ"
 
     assert client.delete(
         f"/api/vita/certificates/{cert.json()['data']['id']}",
-        headers=auth_headers,
+        headers=admin_headers,
     ).status_code == 200
     assert client.delete(
         f"/api/vita/teachings/{teach.json()['data']['id']}",
-        headers=auth_headers,
+        headers=admin_headers,
     ).status_code == 200
+
+
+def test_regular_user_cannot_delete_publication(client, auth_headers):
+    created = client.post(
+        "/api/vita/publications",
+        json={"title": "Keep Me", "venue": "ACL", "year": "2025"},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    item_id = created.json()["data"]["id"]
+    blocked = client.delete(f"/api/vita/publications/{item_id}", headers=auth_headers)
+    assert blocked.status_code == 403
+    assert len(client.get("/api/vita", headers=auth_headers).json()["data"]["publications"]) == 1

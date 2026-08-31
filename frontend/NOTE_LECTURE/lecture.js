@@ -21,6 +21,7 @@ let currentCourse = null;
 
 /** @type {{id:number, original_name:string, extension:string, size_bytes:number, created_at:string, mime_type:string}[]} */
 let files = [];
+let canDelete = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -92,7 +93,6 @@ function parseHash() {
 function showCourseList() {
   currentCourse = null;
   files = [];
-  $('deleteCourseBtn').disabled = false;
   $('courseView').classList.remove('hidden');
   $('folderView').classList.add('hidden');
   $('addCourseBtn').classList.remove('hidden');
@@ -141,16 +141,18 @@ function renderCourses() {
       window.location.hash = courseHash(course.id);
     });
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'lecture-folder-delete';
-    del.textContent = '삭제';
-    del.addEventListener('click', (event) => {
-      event.stopPropagation();
-      handleDeleteCourse(course, del);
-    });
-
-    card.append(open, del);
+    card.append(open);
+    if (canDelete) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'lecture-folder-delete';
+      del.textContent = '삭제';
+      del.addEventListener('click', (event) => {
+        event.stopPropagation();
+        handleDeleteCourse(course, del);
+      });
+      card.appendChild(del);
+    }
     fragment.appendChild(card);
   });
   grid.appendChild(fragment);
@@ -214,14 +216,16 @@ function renderFiles() {
     preview.textContent = item.extension === 'pdf' ? '미리보기' : '열기';
     preview.addEventListener('click', () => openFile(item));
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className =
-      'text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl';
-    del.textContent = '삭제';
-    del.addEventListener('click', () => handleDeleteFile(item, del));
-
-    actions.append(preview, del);
+    actions.append(preview);
+    if (canDelete) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className =
+        'text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl';
+      del.textContent = '삭제';
+      del.addEventListener('click', () => handleDeleteFile(item, del));
+      actions.appendChild(del);
+    }
     row.append(name, ext, size, date, actions);
     fragment.appendChild(row);
   });
@@ -292,6 +296,7 @@ async function handleCreateCourse(event) {
 }
 
 async function handleDeleteCourse(course, button) {
+  if (!canDelete) return;
   if (!window.confirm(`「${course.name}」 강좌와 안의 교안을 모두 삭제할까요?`)) return;
   button.disabled = true;
   try {
@@ -341,7 +346,7 @@ async function uploadFiles(fileList) {
 }
 
 async function handleDeleteFile(item, button) {
-  if (!currentCourse) return;
+  if (!canDelete || !currentCourse) return;
   if (!window.confirm(`「${item.original_name}」을(를) 삭제할까요?`)) return;
   button.disabled = true;
   try {
@@ -455,6 +460,13 @@ function bindDropZone() {
   });
 }
 
+function applyDeleteVisibility() {
+  const btn = $('deleteCourseBtn');
+  if (!btn) return;
+  btn.classList.toggle('hidden', !canDelete);
+  btn.disabled = !canDelete;
+}
+
 async function initLecturePage() {
   if (!getToken()) {
     window.location.href = '/';
@@ -489,6 +501,9 @@ async function initLecturePage() {
   bindDropZone();
 
   try {
+    const me = await apiJson('/api/auth/me');
+    canDelete = Boolean(me && me.is_admin);
+    applyDeleteVisibility();
     await handleRoute();
   } catch (error) {
     showError(error.message);

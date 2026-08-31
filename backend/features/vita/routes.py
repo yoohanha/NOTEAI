@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from features.auth.deps import get_current_user
+from features.auth.deps import get_current_admin, get_current_user
 from features.auth.models import User
 from features.vita.models import VitaCertificate, VitaPublication, VitaTeaching
 from features.vita.schemas import (
@@ -72,10 +72,10 @@ async def create_publication(
 @router.delete("/publications/{item_id}", response_model=dict)
 async def delete_publication(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """논문 한 건을 삭제합니다."""
+    """논문 삭제는 관리자만 할 수 있습니다."""
     if not vita_service.delete_owned(db, current_user, VitaPublication, item_id):
         raise HTTPException(status_code=404, detail="삭제할 논문을 찾을 수 없습니다")
     return {"status": 200, "data": {"id": item_id, "deleted": True}, "message": "논문을 삭제했습니다"}
@@ -98,10 +98,10 @@ async def create_certificate(
 @router.delete("/certificates/{item_id}", response_model=dict)
 async def delete_certificate(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """자격증 한 건을 삭제합니다."""
+    """자격증 삭제는 관리자만 할 수 있습니다."""
     if not vita_service.delete_owned(db, current_user, VitaCertificate, item_id):
         raise HTTPException(status_code=404, detail="삭제할 자격증을 찾을 수 없습니다")
     return {"status": 200, "data": {"id": item_id, "deleted": True}, "message": "자격증을 삭제했습니다"}
@@ -124,10 +124,10 @@ async def create_teaching(
 @router.delete("/teachings/{item_id}", response_model=dict)
 async def delete_teaching(
     item_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """교육 경력 한 건을 삭제합니다."""
+    """교육 경력 삭제는 관리자만 할 수 있습니다."""
     if not vita_service.delete_owned(db, current_user, VitaTeaching, item_id):
         raise HTTPException(status_code=404, detail="삭제할 교육 경력을 찾을 수 없습니다")
     return {"status": 200, "data": {"id": item_id, "deleted": True}, "message": "교육 경력을 삭제했습니다"}
