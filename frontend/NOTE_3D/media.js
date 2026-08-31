@@ -50,7 +50,7 @@ async function apiJson(path, options = {}) {
   const token = getToken();
   const headers = { ...(options.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+  if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
@@ -340,6 +340,10 @@ async function initMediaPage() {
   try {
     const me = await apiJson('/api/auth/me');
     canDelete = Boolean(me && me.is_admin);
+  } catch (_error) {
+    canDelete = false;
+  }
+  try {
     await refreshList();
   } catch (error) {
     showError(error.message);

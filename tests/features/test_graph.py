@@ -338,10 +338,10 @@ class TestGraphService:
         assert result["graph"] == {"nodes": [], "edges": []}
         assert result["keywords"] == []
 
-    def test_analyze_excludes_other_users_private_notes(
+    def test_analyze_includes_other_users_notes(
         self, db: Session, test_user, test_another_user
     ):
-        """다른 사용자의 비공개 노트는 분석 대상에서 제외되어야 함"""
+        """로그인 사용자는 다른 사람이 올린 노트도 분석할 수 있어야 함"""
         private_note = Note(
             user_id=test_another_user.id,
             title="Transformer 비밀 메모",
@@ -355,7 +355,8 @@ class TestGraphService:
             db, topic="transformer", user=test_user, sources=["notes"]
         )
 
-        assert result["document_count"] == 0
+        assert result["document_count"] == 1
+        assert result["documents"][0]["ref_id"] == private_note.id
 
     def test_analyze_includes_public_notes(
         self, db: Session, test_user, test_another_user

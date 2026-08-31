@@ -175,14 +175,17 @@ const setText = (el, text) => { el.textContent = text ?? '–'; };
  */
 async function apiFetch(path, options = {}) {
   const token = getToken();
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+  if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers,
   });
 
   // 로그인/회원가입의 401은 "비밀번호 오류"이지 세션 만료가 아닙니다.

@@ -304,6 +304,7 @@ class TestAuthGetCurrentUser:
         assert data["data"]["username"] == test_user.username
         assert data["data"]["email"] == test_user.email
         assert data["data"]["is_active"] is True
+        assert data["data"]["is_admin"] is False
 
     def test_get_current_user_without_auth(self, client: TestClient):
         """

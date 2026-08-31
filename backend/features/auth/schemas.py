@@ -61,6 +61,7 @@ class UserResponse(UserBase):
 
     id: int
     is_active: bool
+    is_admin: bool = False
     avatar_url: Optional[str]
     created_at: datetime
     updated_at: datetime

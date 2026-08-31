@@ -26,10 +26,16 @@ def is_hosted_runtime() -> bool:
 
 def is_cloudinary_configured() -> bool:
     """Cloudinary 세 값이 모두 있으면 클라우드에 올립니다."""
-    return bool(
-        (getattr(settings, "CLOUDINARY_CLOUD_NAME", "") or "").strip()
-        and (getattr(settings, "CLOUDINARY_API_KEY", "") or "").strip()
-        and (getattr(settings, "CLOUDINARY_API_SECRET", "") or "").strip()
+    return bool(_cloudinary_value("CLOUDINARY_CLOUD_NAME")
+                and _cloudinary_value("CLOUDINARY_API_KEY")
+                and _cloudinary_value("CLOUDINARY_API_SECRET"))
+
+
+def _cloudinary_value(name: str) -> str:
+    """OS 환경 변수를 설정 객체보다 우선해 읽습니다."""
+    return (
+        (os.environ.get(name) or "").strip()
+        or (getattr(settings, name, "") or "").strip()
     )
 
 
@@ -48,9 +54,9 @@ def _configure() -> None:
     import cloudinary
 
     cloudinary.config(
-        cloud_name=settings.CLOUDINARY_CLOUD_NAME.strip(),
-        api_key=settings.CLOUDINARY_API_KEY.strip(),
-        api_secret=settings.CLOUDINARY_API_SECRET.strip(),
+        cloud_name=_cloudinary_value("CLOUDINARY_CLOUD_NAME"),
+        api_key=_cloudinary_value("CLOUDINARY_API_KEY"),
+        api_secret=_cloudinary_value("CLOUDINARY_API_SECRET"),
         secure=True,
     )
 

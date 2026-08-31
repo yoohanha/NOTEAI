@@ -83,9 +83,9 @@ class GraphService:
         limit: int = 50,
     ) -> List[int]:
         """
-        현재 사용자가 삭제하지 않은 노트 ID를 최신순으로 반환합니다.
+        현재 사용자 소유의 노트 ID를 최신순으로 반환합니다.
 
-        태그 적용 대상과 분석 응답의 my_note_ids에 사용합니다.
+        태그 적용(쓰기)은 본인 노트에만 하고, 분석 조회는 collect_notes가 공유합니다.
         """
         rows = (
             db.query(Note.id)
@@ -108,57 +108,18 @@ class GraphService:
         """
         분석에 넣을 노트를 수집합니다.
 
-        내 노트는 토픽 단어가 없어도 항상 가져옵니다.
-        (큐레이션에서 담은 노트가 그래프/태그 적용에서 빠지지 않게 하기 위함)
-        다른 사람의 공개 노트만 토픽 LIKE로 좁힙니다.
-
-        Args:
-            db: 데이터베이스 세션
-            user: 현재 사용자
-            topic_tokens: 토픽 토큰 목록
-
-        Returns:
-            SourceDocument 목록
+        로그인 사용자가 공유하는 노트를 분석 후보로 넣습니다.
         """
-        owned_rows = (
+        shared_rows = (
             db.query(Note)
-            .filter(
-                Note.deleted_at.is_(None),
-                Note.user_id == user.id,
-            )
+            .filter(Note.deleted_at.is_(None))
             .order_by(Note.updated_at.desc())
             .limit(CANDIDATE_LIMIT)
             .all()
         )
-
-        public_query = db.query(Note).filter(
-            Note.deleted_at.is_(None),
-            Note.is_public.is_(True),
-            Note.user_id != user.id,
-        )
-
-        # 제목/본문/태그 어디든 토픽 토큰이 있으면 후보로 채택
-        if topic_tokens:
-            conditions = []
-            for column in (Note.title, Note.content, cast(Note.tags, String)):
-                conditions.extend(
-                    GraphService._build_like_filters(column, topic_tokens)
-                )
-            public_query = public_query.filter(or_(*conditions))
-
-        public_rows = (
-            public_query.order_by(Note.updated_at.desc())
-            .limit(CANDIDATE_LIMIT)
-            .all()
-        )
-
-        documents = [
-            GraphService._note_to_source(note, is_own=True) for note in owned_rows
+        return [
+            GraphService._note_to_source(note, is_own=True) for note in shared_rows
         ]
-        documents.extend(
-            GraphService._note_to_source(note, is_own=False) for note in public_rows
-        )
-        return documents
 
     @staticmethod
     def collect_trends(
