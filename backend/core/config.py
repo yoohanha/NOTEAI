@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # 파일 업로드
     MAX_UPLOAD_SIZE: int = 5 * 1024 * 1024  # 5MB
     MEDIA_MAX_UPLOAD_SIZE: int = 40 * 1024 * 1024  # NOTE_3D 동영상용
+    LECTURE_MAX_UPLOAD_SIZE: int = 80 * 1024 * 1024  # NOTE_LECTURE 교안
     UPLOAD_DIR: str = "./uploads"
 
     # AI/NLP 설정

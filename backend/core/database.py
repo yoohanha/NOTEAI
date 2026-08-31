@@ -129,6 +129,7 @@ def register_models():
     from features.trends.models import TrendItem
     from features.monitor.models import CollectionRun
     from features.media.models import MediaAsset
+    from features.lectures.models import LectureCourse, LectureMaterial
 
 
 def init_db():

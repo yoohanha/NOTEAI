@@ -3,15 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>NOTE_LECTURE · NoteAI</title>
-  <link rel="stylesheet" href="../style.css?v=20260831a">
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cream: { 50: '#FFFBF5', 100: '#F6EEE1', 200: '#E8DCC8', 300: '#D9C9B0' },
+            paper: '#FFFEFB',
+            forest: { 50: '#EEF4F0', 100: '#D5E4DA', 500: '#4A6B57', 600: '#3D5C4A', 700: '#2F4A3C' },
+            ink: { DEFAULT: '#2C2925', muted: '#6F6A62', faint: '#9A948A' },
+          },
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="../style.css?v=20260831d">
 </head>
-<body>
-  <main class="workspace-page">
-    <p class="text-xs tracking-[0.2em] uppercase" style="color:#3d5c4a;margin-bottom:0.75rem;">The Matrix</p>
-    <h1>NOTE Lecture Page</h1>
-    <p style="color:#6f6a62;margin-bottom:1.5rem;">강의 노트 환경입니다. 곧 연결됩니다.</p>
-    <a href="/#/matrix">← The Matrix로 돌아가기</a>
+<body class="lecture-page text-ink font-sans antialiased">
+  <header class="sticky top-0 z-10 border-b border-cream-200/80 bg-cream-50/80 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-5 flex flex-wrap items-center gap-3">
+      <a href="/#/matrix" class="text-xs font-medium text-forest-600 hover:underline">← The Matrix</a>
+      <div class="min-w-0">
+        <p class="text-[11px] tracking-[0.28em] uppercase font-medium text-forest-500">NoteAI · Lecture</p>
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight">NOTE_LECTURE</h1>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <span id="lectureMeta" class="text-xs text-ink-faint"></span>
+        <button type="button" id="addCourseBtn"
+                class="w-10 h-10 rounded-xl bg-forest-600 hover:bg-forest-700 text-cream-50 text-xl
+                       leading-none shadow-soft transition"
+                aria-label="새 강좌 폴더 추가">+</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-8 py-10 space-y-6">
+    <p id="lectureError" class="hidden lecture-card px-5 py-4 text-sm text-red-700 bg-red-50 border-red-200" role="alert"></p>
+    <p id="lectureStatus" class="text-xs text-ink-muted" role="status"></p>
+
+    <section id="courseView">
+      <div id="courseGrid" class="lecture-grid" role="list"></div>
+      <div id="courseEmpty" class="hidden lecture-card px-8 py-16 text-center">
+        <span class="lecture-folder-icon mx-auto mb-4" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M8 16h12l4 4h16v18H8V16z" fill="#E8DCC8"/>
+            <path d="M8 20h32v18H8V20z" fill="#FFFBF5"/>
+            <path d="M8 16h12l4 4H8V16z" fill="#D9C9B0"/>
+          </svg>
+        </span>
+        <p class="text-sm font-medium mb-1">아직 강좌 폴더가 없습니다</p>
+        <p class="text-xs text-ink-faint">오른쪽 위 + 버튼으로 새 강좌를 만들어 보세요.</p>
+      </div>
+    </section>
+
+    <section id="folderView" class="hidden space-y-6">
+      <div class="lecture-card px-6 sm:px-8 py-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <button type="button" id="backToCoursesBtn" class="text-xs text-forest-600 hover:underline mb-2">← 강좌 목록</button>
+          <h2 id="folderTitle" class="text-lg font-bold tracking-tight"></h2>
+          <p class="text-xs text-ink-faint mt-1">PPT, PDF 등 교안을 올려 표에서 관리합니다.</p>
+        </div>
+        <button type="button" id="deleteCourseBtn"
+                class="text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200
+                       px-3 py-1.5 rounded-xl">
+          강좌 삭제
+        </button>
+      </div>
+
+      <section id="dropZone"
+               class="lecture-card px-6 sm:px-10 py-10 text-center border-2 border-dashed border-cream-300
+                      transition hover:border-forest-500">
+        <p class="text-base font-semibold tracking-tight mb-1">교안 파일을 여기로 끌어다 놓거나</p>
+        <p class="text-xs text-ink-faint mb-6">PDF, PPT, PPTX, DOC, DOCX, ODP, ODT, TXT, MD · 최대 80MB</p>
+        <label class="inline-flex items-center gap-2 bg-forest-600 hover:bg-forest-700 text-cream-50
+                      text-sm font-medium px-5 py-2.5 rounded-xl cursor-pointer transition">
+          파일 선택
+          <input id="lectureFileInput" type="file" class="hidden" multiple
+                 accept=".pdf,.ppt,.pptx,.doc,.docx,.odp,.odt,.txt,.md,application/pdf">
+        </label>
+      </section>
+
+      <section class="lecture-card overflow-hidden">
+        <div class="px-6 sm:px-8 pt-6 pb-3">
+          <h3 class="text-sm font-semibold tracking-tight">교안 목록</h3>
+        </div>
+        <div class="overflow-x-auto px-2 sm:px-4 pb-4">
+          <table class="w-full text-sm">
+            <thead class="text-left text-xs text-ink-muted">
+              <tr>
+                <th class="px-4 py-3 font-medium">파일 이름</th>
+                <th class="px-4 py-3 font-medium">확장자</th>
+                <th class="px-4 py-3 font-medium">크기</th>
+                <th class="px-4 py-3 font-medium">업로드</th>
+                <th class="px-4 py-3 font-medium text-right">관리</th>
+              </tr>
+            </thead>
+            <tbody id="fileTableBody" class="divide-y divide-cream-100"></tbody>
+          </table>
+        </div>
+        <p id="fileEmpty" class="hidden px-8 py-16 text-center text-sm text-ink-faint">
+          이 강좌에 올린 교안이 없습니다. 위에서 파일을 추가해 보세요.
+        </p>
+      </section>
+    </section>
   </main>
+
+  <div id="nameModal" class="lecture-modal hidden" role="dialog" aria-modal="true" aria-labelledby="nameModalTitle">
+    <div class="lecture-modal-panel">
+      <h2 id="nameModalTitle" class="text-base font-bold tracking-tight mb-1">새 강좌 폴더</h2>
+      <p class="text-xs text-ink-faint mb-4">강좌 이름을 입력하면 폴더 카드가 바로 추가됩니다.</p>
+      <form id="nameForm" class="space-y-4">
+        <label class="block text-xs font-medium text-ink-muted" for="courseNameInput">강좌 이름</label>
+        <input id="courseNameInput" type="text" maxlength="80" required autocomplete="off"
+               class="w-full rounded-xl border border-cream-200 bg-cream-50 px-3 py-2.5 text-sm"
+               placeholder="예: 머신러닝 개론">
+        <div class="flex justify-end gap-2">
+          <button type="button" id="nameModalCancel"
+                  class="text-xs px-3 py-2 rounded-xl text-ink-muted hover:bg-cream-100">취소</button>
+          <button type="submit"
+                  class="text-xs font-medium px-4 py-2 rounded-xl bg-forest-600 text-cream-50 hover:bg-forest-700">
+            만들기
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="previewModal" class="media-modal hidden" role="dialog" aria-modal="true" aria-label="교안 미리보기">
+    <button type="button" id="previewModalClose" class="media-modal-close" aria-label="닫기">닫기</button>
+    <div id="previewModalBody" class="media-modal-body"></div>
+  </div>
+
+  <script src="lecture.js?v=20260831d"></script>
 </body>
 </html>

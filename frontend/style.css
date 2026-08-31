@@ -206,6 +206,132 @@ input[type="checkbox"] {
   font-size: 0.875rem;
 }
 
+/* ============ NOTE_LECTURE ============ */
+
+.lecture-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 50% at 8% 8%, rgba(61, 92, 74, 0.06), transparent 55%),
+    var(--cream-50);
+}
+
+.lecture-card {
+  background: var(--paper);
+  border: 1px solid var(--cream-200);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.lecture-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .lecture-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lecture-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+.lecture-folder-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--cream-200);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.lecture-folder-open {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 1.5rem 1.5rem 1rem;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.lecture-folder-open:hover {
+  background: #fbf8f2;
+}
+
+.lecture-folder-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid var(--cream-200);
+  background: linear-gradient(180deg, #fffefb 0%, var(--cream-100) 100%);
+  box-shadow: 0 6px 14px rgba(44, 41, 37, 0.06);
+}
+
+.lecture-folder-icon svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.lecture-folder-delete {
+  align-self: flex-end;
+  margin: 0 1.25rem 1.15rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.lecture-drop-active {
+  border-color: var(--forest) !important;
+  background-color: #eef4f0 !important;
+}
+
+.lecture-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(44, 41, 37, 0.45);
+  padding: 1.5rem;
+}
+
+.lecture-modal.hidden {
+  display: none;
+}
+
+.lecture-modal-panel {
+  width: min(28rem, 100%);
+  background: var(--paper);
+  border: 1px solid var(--cream-200);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem 1.5rem 1.25rem;
+}
+
+.lecture-preview-frame {
+  width: min(92vw, 1100px);
+  height: 82vh;
+  border: 0;
+  border-radius: 1rem;
+  background: #fff;
+}
+
 /* ============ NOTE_3D 미디어 ============ */
 
 .note3d-page {
