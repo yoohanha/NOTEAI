@@ -8,8 +8,14 @@
   --ink: #2c2925;
   --ink-muted: #6f6a62;
   --forest: #3d5c4a;
+  --rose: #d4849a;
+  --rose-deep: #c45c74;
+  --rose-soft: #f7dde4;
+  --lavender: #efe6f4;
   --shadow-soft: 0 1px 2px rgba(44, 41, 37, 0.04),
     0 10px 28px rgba(44, 41, 37, 0.05);
+  --shadow-lift: 0 8px 20px rgba(196, 92, 116, 0.12),
+    0 2px 6px rgba(44, 41, 37, 0.06);
 }
 
 html,
@@ -92,8 +98,8 @@ input[type="checkbox"] {
 
 #matrixView {
   background:
-    radial-gradient(ellipse 70% 50% at 8% 12%, rgba(61, 92, 74, 0.08), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 94% 90%, rgba(196, 163, 90, 0.1), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 10% 0%, rgba(239, 230, 244, 0.95), transparent 58%),
+    radial-gradient(ellipse 50% 40% at 92% 88%, rgba(247, 221, 228, 0.7), transparent 52%),
     var(--cream-50);
 }
 
@@ -104,7 +110,7 @@ input[type="checkbox"] {
   border-radius: 1.25rem;
   overflow: hidden;
   background: var(--paper);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-lift);
 }
 
 @media (min-width: 640px) {
@@ -148,14 +154,19 @@ input[type="checkbox"] {
 
 .matrix-card:hover,
 .matrix-card:focus-visible {
-  background: #eef4f0;
+  background: #fbf4f7;
   outline: none;
 }
 
 .matrix-card-icon {
-  width: 2.75rem;
-  height: 2.75rem;
-  color: var(--forest);
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0.55rem;
+  color: var(--rose-deep);
+  border: 1.5px solid var(--rose);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #fff8fa 0%, var(--rose-soft) 100%);
+  box-shadow: 0 6px 14px rgba(196, 92, 116, 0.16);
 }
 
 .matrix-card-icon svg {
@@ -197,19 +208,53 @@ input[type="checkbox"] {
 
 /* ============ NOTE_3D 미디어 ============ */
 
+.note3d-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 45% at 8% 0%, rgba(239, 230, 244, 0.95), transparent 56%),
+    radial-gradient(ellipse 45% 40% at 96% 10%, rgba(247, 221, 228, 0.65), transparent 50%),
+    var(--cream-50);
+}
+
+.note3d-card {
+  background: var(--paper);
+  border: 1px solid var(--cream-200);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-lift);
+}
+
 .media-drop-active {
-  border-color: var(--forest) !important;
-  background-color: #eef4f0 !important;
+  border-color: var(--rose) !important;
+  background-color: #fbf4f7 !important;
+}
+
+.icon-3d {
+  width: 4.25rem;
+  height: 4.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.25rem;
+  border: 1.5px solid var(--rose);
+  background: linear-gradient(180deg, #fff8fa 0%, var(--rose-soft) 100%);
+  box-shadow: 0 8px 18px rgba(196, 92, 116, 0.18);
+  color: var(--rose-deep);
+}
+
+.icon-3d svg {
+  width: 2.1rem;
+  height: 2.1rem;
 }
 
 .media-thumb {
-  width: 88px;
-  height: 64px;
+  width: 96px;
+  height: 72px;
   padding: 0;
-  border: 1px solid var(--cream-200);
-  border-radius: 0.75rem;
+  border: 1.5px solid var(--rose-soft);
+  border-radius: 1rem;
   overflow: hidden;
-  background: var(--cream-50);
+  background: linear-gradient(180deg, #fff8fa 0%, #f6eee1 100%);
+  box-shadow: 0 6px 14px rgba(196, 92, 116, 0.12);
   cursor: zoom-in;
 }
 
@@ -228,6 +273,20 @@ input[type="checkbox"] {
 
 .media-thumb:hover video {
   transform: scale(1.06);
+}
+
+.media-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rose-deep);
+}
+
+.media-thumb-fallback svg {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .media-modal {

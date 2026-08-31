@@ -83,6 +83,27 @@ async function loadPreviewUrl(item) {
   return item.previewUrl;
 }
 
+function createFallbackIcon(kind) {
+  const wrap = document.createElement('span');
+  wrap.className = 'media-thumb-fallback';
+  wrap.setAttribute('aria-hidden', 'true');
+  wrap.innerHTML = kind === 'video'
+    ? `<svg viewBox="0 0 48 48" fill="none">
+         <rect x="19" y="6" width="10" height="18" rx="5" fill="#C45C74"/>
+         <rect x="21" y="8" width="6" height="14" rx="3" fill="#F7DDE4"/>
+         <path d="M14 23a10 10 0 0 0 20 0" stroke="#C45C74" stroke-width="2.4" stroke-linecap="round"/>
+         <path d="M24 33v5" stroke="#C45C74" stroke-width="2.4" stroke-linecap="round"/>
+         <rect x="16" y="38" width="16" height="4" rx="2" fill="#E08AA0"/>
+       </svg>`
+    : `<svg viewBox="0 0 48 48" fill="none">
+         <rect x="8" y="10" width="32" height="28" rx="6" fill="#F3C4CE"/>
+         <rect x="11" y="13" width="26" height="22" rx="4" fill="#FFF8FA"/>
+         <circle cx="19" cy="21" r="4" fill="#E08AA0"/>
+         <path d="M12 31l8-7 6 5 5-4 5 6H12z" fill="#C45C74"/>
+       </svg>`;
+  return wrap;
+}
+
 function revokePreviews() {
   mediaItems.forEach((item) => {
     if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -107,19 +128,19 @@ function renderTable() {
     row.className = 'align-middle';
 
     const previewCell = document.createElement('td');
-    previewCell.className = 'px-4 py-3';
+    previewCell.className = 'px-4 py-5';
     const thumb = document.createElement('button');
     thumb.type = 'button';
     thumb.className = 'media-thumb';
     thumb.setAttribute('aria-label', `${item.original_name} 확대 보기`);
 
-    if (item.kind === 'video') {
+    if (item.previewUrl && item.kind === 'video') {
       const video = document.createElement('video');
       video.muted = true;
       video.loop = true;
       video.playsInline = true;
       video.preload = 'metadata';
-      if (item.previewUrl) video.src = item.previewUrl;
+      video.src = item.previewUrl;
       thumb.appendChild(video);
       thumb.addEventListener('mouseenter', () => {
         video.play().catch(() => {});
@@ -128,38 +149,43 @@ function renderTable() {
         video.pause();
         video.currentTime = 0;
       });
-    } else {
+    } else if (item.previewUrl) {
       const img = document.createElement('img');
       img.alt = item.original_name;
-      if (item.previewUrl) img.src = item.previewUrl;
+      img.src = item.previewUrl;
       thumb.appendChild(img);
+    } else {
+      thumb.appendChild(createFallbackIcon(item.kind));
     }
 
-    thumb.addEventListener('click', () => openModal(item));
+    thumb.addEventListener('click', () => {
+      if (!item.previewUrl) return;
+      openModal(item);
+    });
     previewCell.appendChild(thumb);
 
     const name = document.createElement('td');
-    name.className = 'px-4 py-3 font-medium break-all';
+    name.className = 'px-4 py-5 font-medium break-all';
     name.textContent = item.original_name;
 
     const kind = document.createElement('td');
-    kind.className = 'px-4 py-3 text-ink-muted';
+    kind.className = 'px-4 py-5 text-ink-muted';
     kind.textContent = item.kind === 'video' ? '동영상' : '이미지';
 
     const size = document.createElement('td');
-    size.className = 'px-4 py-3 text-ink-muted whitespace-nowrap';
+    size.className = 'px-4 py-5 text-ink-muted whitespace-nowrap';
     size.textContent = formatBytes(item.size_bytes);
 
     const date = document.createElement('td');
-    date.className = 'px-4 py-3 text-ink-muted whitespace-nowrap';
+    date.className = 'px-4 py-5 text-ink-muted whitespace-nowrap';
     date.textContent = formatTime(item.created_at);
 
     const actions = document.createElement('td');
-    actions.className = 'px-4 py-3 text-right';
+    actions.className = 'px-4 py-5 text-right';
     const del = document.createElement('button');
     del.type = 'button';
     del.className =
-      'text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg';
+      'text-xs font-medium text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-100 px-3 py-1.5 rounded-xl';
     del.textContent = '삭제';
     del.addEventListener('click', () => handleDelete(item, del));
     actions.appendChild(del);

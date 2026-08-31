@@ -16,6 +16,7 @@
             cream: { 50: '#FFFBF5', 100: '#F6EEE1', 200: '#E8DCC8', 300: '#D9C9B0' },
             paper: '#FFFEFB',
             forest: { 50: '#EEF4F0', 500: '#4A6B57', 600: '#3D5C4A', 700: '#2F4A3C' },
+            rose: { 50: '#FBF4F7', 100: '#F7DDE4', 400: '#D4849A', 500: '#C45C74' },
             ink: { DEFAULT: '#2C2925', muted: '#6F6A62', faint: '#9A948A' },
           },
           fontFamily: {
@@ -25,40 +26,81 @@
       },
     };
   </script>
-  <link rel="stylesheet" href="../style.css?v=20260831b">
+  <link rel="stylesheet" href="../style.css?v=20260831c">
 </head>
-<body class="bg-cream-50 text-ink min-h-screen font-sans antialiased">
-  <header class="border-b border-cream-200 bg-cream-50/90 backdrop-blur-md sticky top-0 z-10">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3">
-      <a href="/#/matrix" class="text-xs text-forest-600 hover:underline">← The Matrix</a>
-      <h1 class="text-lg font-bold tracking-tight">NOTE_3D</h1>
-      <span id="mediaCount" class="text-xs text-ink-faint"></span>
+<body class="note3d-page text-ink font-sans antialiased">
+  <header class="sticky top-0 z-10 border-b border-cream-200/80 bg-cream-50/80 backdrop-blur-md">
+    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-5 flex flex-wrap items-center gap-3">
+      <a href="/#/matrix" class="text-xs font-medium hover:underline" style="color:#c45c74">← The Matrix</a>
+      <div class="min-w-0">
+        <p class="text-[11px] tracking-[0.28em] uppercase font-medium" style="color:#d4849a">NoteAI · Media</p>
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight">NOTE_3D</h1>
+      </div>
+      <span id="mediaCount" class="ml-auto text-xs text-ink-faint"></span>
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-    <p class="text-sm text-ink-muted">이미지와 동영상을 올려 한곳에서 미리보고 관리합니다.</p>
+  <main class="max-w-6xl mx-auto px-4 sm:px-8 py-10 space-y-8">
+    <section class="note3d-card px-6 sm:px-8 py-8">
+      <p class="text-sm text-ink-muted leading-relaxed max-w-2xl">
+        이미지와 동영상을 한곳에 모아 미리보고 관리합니다. 카드 안의 여백과 핑크 포인트는 The Matrix와 같은 톤을 따릅니다.
+      </p>
+    </section>
 
     <section id="dropZone"
-             class="rounded-2xl border-2 border-dashed border-cream-300 bg-paper p-8 text-center
-                    transition hover:border-forest-500 hover:bg-forest-50/40">
-      <p class="text-sm font-medium mb-1">파일을 여기로 끌어다 놓거나</p>
-      <p class="text-xs text-ink-faint mb-4">PNG, JPG, WEBP, GIF, MP4, WEBM, MOV · 최대 40MB</p>
-      <label class="inline-flex items-center gap-2 bg-forest-600 hover:bg-forest-700 text-cream-50
-                    text-sm px-4 py-2 rounded-xl cursor-pointer transition">
+             class="note3d-card px-6 sm:px-10 py-12 text-center border-2 border-dashed border-rose-100
+                    transition hover:border-rose-400">
+      <div class="flex items-center justify-center gap-4 mb-6" aria-hidden="true">
+        <span class="icon-3d">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="5" y="15" width="38" height="22" rx="5" fill="#F3C4CE"/>
+            <rect x="8" y="18" width="32" height="16" rx="3" fill="#FFF8FA"/>
+            <rect x="11" y="21" width="5" height="4" rx="1" fill="#C45C74"/>
+            <rect x="18" y="21" width="5" height="4" rx="1" fill="#D4849A"/>
+            <rect x="25" y="21" width="5" height="4" rx="1" fill="#C45C74"/>
+            <rect x="32" y="21" width="5" height="4" rx="1" fill="#D4849A"/>
+            <rect x="14" y="28" width="20" height="3" rx="1.5" fill="#E08AA0"/>
+          </svg>
+        </span>
+        <span class="icon-3d">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="19" y="6" width="10" height="18" rx="5" fill="#C45C74"/>
+            <rect x="21" y="8" width="6" height="14" rx="3" fill="#F7DDE4"/>
+            <path d="M14 23a10 10 0 0 0 20 0" stroke="#C45C74" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M24 33v5" stroke="#C45C74" stroke-width="2.4" stroke-linecap="round"/>
+            <rect x="16" y="38" width="16" height="4" rx="2" fill="#E08AA0"/>
+          </svg>
+        </span>
+        <span class="icon-3d hidden sm:inline-flex">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="8" y="10" width="32" height="28" rx="6" fill="#F3C4CE"/>
+            <rect x="11" y="13" width="26" height="22" rx="4" fill="#FFF8FA"/>
+            <circle cx="19" cy="21" r="4" fill="#E08AA0"/>
+            <path d="M12 31l8-7 6 5 5-4 5 6H12z" fill="#C45C74"/>
+          </svg>
+        </span>
+      </div>
+      <p class="text-base font-semibold tracking-tight mb-1">파일을 여기로 끌어다 놓거나</p>
+      <p class="text-xs text-ink-faint mb-6">PNG, JPG, WEBP, GIF, MP4, WEBM, MOV · 최대 40MB</p>
+      <label class="inline-flex items-center gap-2 bg-rose-500 hover:opacity-90 text-paper
+                    text-sm font-medium px-5 py-2.5 rounded-xl cursor-pointer transition shadow-soft">
         파일 선택
         <input id="mediaFileInput" type="file" class="hidden" multiple
                accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime">
       </label>
-      <p id="mediaStatus" class="mt-3 text-xs text-ink-muted" role="status"></p>
+      <p id="mediaStatus" class="mt-4 text-xs text-ink-muted" role="status"></p>
     </section>
 
-    <p id="mediaError" class="hidden rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert"></p>
+    <p id="mediaError" class="hidden note3d-card px-5 py-4 text-sm text-red-700 bg-red-50 border-red-200" role="alert"></p>
 
-    <section class="bg-paper rounded-2xl border border-cream-200 shadow-soft overflow-hidden">
-      <div class="overflow-x-auto">
+    <section class="note3d-card overflow-hidden">
+      <div class="px-6 sm:px-8 pt-6 pb-3">
+        <h2 class="text-sm font-semibold tracking-tight">라이브러리</h2>
+        <p class="text-xs text-ink-faint mt-1">썸네일에 마우스를 올리면 확대되거나 동영상이 재생됩니다.</p>
+      </div>
+      <div class="overflow-x-auto px-2 sm:px-4 pb-4">
         <table class="w-full text-sm">
-          <thead class="bg-cream-50 text-left text-xs text-ink-muted">
+          <thead class="text-left text-xs text-ink-muted">
             <tr>
               <th class="px-4 py-3 font-medium">미리보기</th>
               <th class="px-4 py-3 font-medium">파일명</th>
@@ -71,7 +113,7 @@
           <tbody id="mediaTableBody" class="divide-y divide-cream-100"></tbody>
         </table>
       </div>
-      <p id="mediaEmpty" class="hidden px-5 py-12 text-center text-sm text-ink-faint">
+      <p id="mediaEmpty" class="hidden px-8 py-16 text-center text-sm text-ink-faint">
         아직 올린 파일이 없습니다. 위에서 이미지 또는 동영상을 추가해 보세요.
       </p>
     </section>
@@ -82,6 +124,6 @@
     <div id="mediaModalBody" class="media-modal-body"></div>
   </div>
 
-  <script src="media.js?v=20260831b"></script>
+  <script src="media.js?v=20260831c"></script>
 </body>
 </html>
