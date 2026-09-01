@@ -137,10 +137,22 @@ def require_persistent_database() -> None:
     """
     Render처럼 디스크가 날아가는 환경에서 SQLite를 쓰면
     회원/노트/이력이 재배포마다 사라집니다. 기동을 막아 실수를 알립니다.
+
+    주의: 여기서 예외가 나면 Render 배포가 실패하고, Render는 **직전에
+    성공한 빌드를 계속 서빙**합니다. 즉 새 코드가 반영되지 않은 채
+    "아무것도 안 바뀐" 것처럼 보입니다. 그래서 예외를 던지기 전에
+    무엇이 빠졌는지 배포 로그 맨 끝에 크게 남깁니다.
     """
     if not is_hosted_runtime():
         return
     if _IS_SQLITE:
+        print("=" * 70, flush=True)
+        print("❌ 배포 중단: 영구 데이터베이스가 연결되지 않았습니다.", flush=True)
+        print(f"   현재 DATABASE_URL 해석 결과 → {_describe_database()}", flush=True)
+        print("   Render 대시보드 → Environment → DATABASE_URL 에", flush=True)
+        print("   postgresql:// 로 시작하는 주소를 넣어야 합니다.", flush=True)
+        print("   (이 배포는 실패하고, 이전 버전이 계속 서빙됩니다)", flush=True)
+        print("=" * 70, flush=True)
         raise RuntimeError(
             "호스팅 환경에서 SQLite는 재배포마다 회원 데이터가 사라집니다. "
             "Render Postgres 또는 Supabase의 DATABASE_URL(postgresql://...)을 설정하세요."

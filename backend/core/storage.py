@@ -42,11 +42,29 @@ def _cloudinary_value(name: str) -> str:
 def require_persistent_storage() -> None:
     """
     호스팅에서 Cloudinary가 빠지면 업로드가 디스크에 쌓였다가 재배포 때 사라집니다.
+
+    주의: 여기서 예외가 나면 Render 배포가 실패하고 이전 빌드가 계속 서빙되므로,
+    새 코드가 반영되지 않은 것처럼 보입니다. 어떤 키가 비었는지 로그에 남깁니다.
     """
     if is_hosted_runtime() and not is_cloudinary_configured():
+        missing = [
+            name
+            for name in (
+                "CLOUDINARY_CLOUD_NAME",
+                "CLOUDINARY_API_KEY",
+                "CLOUDINARY_API_SECRET",
+            )
+            if not _cloudinary_value(name)
+        ]
+        print("=" * 70, flush=True)
+        print("❌ 배포 중단: Cloudinary 환경 변수가 비어 있습니다.", flush=True)
+        print(f"   비어 있는 값 → {', '.join(missing)}", flush=True)
+        print("   Render 대시보드 → Environment 에 세 값을 모두 넣어야 합니다.", flush=True)
+        print("   (이 배포는 실패하고, 이전 버전이 계속 서빙됩니다)", flush=True)
+        print("=" * 70, flush=True)
         raise RuntimeError(
             "호스팅 환경에서는 Cloudinary가 필요합니다. "
-            "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET를 설정하세요."
+            f"다음 값이 비어 있습니다: {', '.join(missing)}"
         )
 
 

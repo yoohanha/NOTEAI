@@ -98,6 +98,31 @@ app.include_router(admin_router, prefix="/api")    # The Matrix 관리자
 
 
 # ============ 헬스 체크 ============
+def _running_commit() -> str:
+    """
+    현재 서빙 중인 코드의 커밋 해시를 반환합니다.
+
+    Render는 빌드할 때 RENDER_GIT_COMMIT을 넣어줍니다. 로컬에서는
+    .git/HEAD를 직접 읽어 같은 값을 보여줍니다. 둘 다 없으면 "unknown".
+    """
+    import os
+
+    commit = (os.environ.get("RENDER_GIT_COMMIT") or "").strip()
+    if commit:
+        return commit[:7]
+
+    # 로컬 실행: 외부 명령 없이 .git 디렉터리만 읽습니다.
+    try:
+        git_dir = Path(__file__).resolve().parent.parent / ".git"
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        if head.startswith("ref:"):
+            ref_path = git_dir / head.split(" ", 1)[1].strip()
+            return ref_path.read_text(encoding="utf-8").strip()[:7]
+        return head[:7]
+    except Exception:
+        return "unknown"
+
+
 @app.get("/api/health")
 async def health_check() -> dict:
     """
@@ -110,6 +135,10 @@ async def health_check() -> dict:
         "status": "healthy",
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        # 지금 실제로 서빙 중인 코드의 커밋. 배포가 조용히 실패하면 Render는
+        # 직전 성공 빌드를 계속 서빙하므로, 이 값이 로컬 HEAD와 다르면
+        # "코드가 안 고쳐진" 게 아니라 "배포가 안 나간" 것입니다.
+        "commit": _running_commit(),
         "persistence": {
             "database": database_kind(),
             "cloudinary": is_cloudinary_configured(),
