@@ -6,7 +6,7 @@
 """
 
 from pathlib import Path
-from typing import Generator
+from typing import Generator, List, Optional
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine.url import make_url
@@ -15,9 +15,9 @@ from sqlalchemy.pool import NullPool, StaticPool
 
 from core.config import settings
 from core.storage import (
+    check_persistent_storage,
     is_cloudinary_configured,
     is_hosted_runtime,
-    require_persistent_storage,
 )
 
 
@@ -133,26 +133,37 @@ def get_db() -> Generator:
         db.close()
 
 
+def check_persistent_database() -> Optional[str]:
+    """
+    호스팅에서 SQLite를 쓰고 있는지 확인하고, 그렇다면 설명을 반환합니다.
+
+    예외를 던지지 않는 이유:
+    startup 이벤트에서 예외가 나면 uvicorn이 종료 코드 3(STARTUP_FAILURE)으로
+    죽고, Render는 **직전 성공 빌드를 계속 서빙**합니다. 설정 실수 하나로
+    새 코드가 영영 배포되지 않는 상태에 빠집니다. 그보다는 기동시키고
+    /api/health 에 'degraded'로 드러내는 편이 진단 가능하고 안전합니다.
+
+    Returns:
+        문제 설명 문자열. 정상이면 None.
+    """
+    if not is_hosted_runtime() or not _IS_SQLITE:
+        return None
+
+    return (
+        f"영구 데이터베이스가 연결되지 않았습니다(현재: {_describe_database()}). "
+        "재시작하면 회원·노트·이력이 사라집니다. Render 대시보드 → Environment → "
+        "DATABASE_URL 에 postgresql:// 주소를 넣으세요."
+    )
+
+
 def require_persistent_database() -> None:
     """
-    Render처럼 디스크가 날아가는 환경에서 SQLite를 쓰면
-    회원/노트/이력이 재배포마다 사라집니다. 기동을 막아 실수를 알립니다.
+    check_persistent_database()의 예외 버전.
 
-    주의: 여기서 예외가 나면 Render 배포가 실패하고, Render는 **직전에
-    성공한 빌드를 계속 서빙**합니다. 즉 새 코드가 반영되지 않은 채
-    "아무것도 안 바뀐" 것처럼 보입니다. 그래서 예외를 던지기 전에
-    무엇이 빠졌는지 배포 로그 맨 끝에 크게 남깁니다.
+    기동 경로에서는 쓰지 마세요(배포가 죽습니다). 스크립트나 테스트처럼
+    설정이 확실히 갖춰져야 하는 곳에서만 사용합니다.
     """
-    if not is_hosted_runtime():
-        return
-    if _IS_SQLITE:
-        print("=" * 70, flush=True)
-        print("❌ 배포 중단: 영구 데이터베이스가 연결되지 않았습니다.", flush=True)
-        print(f"   현재 DATABASE_URL 해석 결과 → {_describe_database()}", flush=True)
-        print("   Render 대시보드 → Environment → DATABASE_URL 에", flush=True)
-        print("   postgresql:// 로 시작하는 주소를 넣어야 합니다.", flush=True)
-        print("   (이 배포는 실패하고, 이전 버전이 계속 서빙됩니다)", flush=True)
-        print("=" * 70, flush=True)
+    if check_persistent_database():
         raise RuntimeError(
             "호스팅 환경에서 SQLite는 재배포마다 회원 데이터가 사라집니다. "
             "Render Postgres 또는 Supabase의 DATABASE_URL(postgresql://...)을 설정하세요."
@@ -255,18 +266,36 @@ def _ensure_upload_url_columns():
             print(f"⚠️ {table}.public_url 길이 확장을 건너뜁니다: {exc}")
 
 
-def init_db():
+def init_db() -> List[str]:
     """
     데이터베이스 초기화 (애플리케이션 시작 시 호출)
-    모든 테이블 생성
+
+    설정 문제나 DDL 실패로 예외를 던지지 않습니다. startup 이벤트에서
+    예외가 나면 uvicorn이 종료 코드 3으로 죽고 Render가 이전 빌드를
+    계속 서빙하기 때문입니다. 대신 문제를 모아서 돌려주고, 호출부가
+    /api/health 에 'degraded'로 노출합니다.
+
+    Returns:
+        발견된 문제 설명 목록. 정상이면 빈 리스트.
     """
-    require_persistent_database()
-    require_persistent_storage()
+    problems: List[str] = []
+
+    for problem in (check_persistent_database(), check_persistent_storage()):
+        if problem:
+            problems.append(problem)
+
     register_models()
 
-    Base.metadata.create_all(bind=engine)
-    _ensure_upload_url_columns()
-    print("✅ 데이터베이스 초기화 완료")
+    # 테이블 생성이 실패해도(권한 부족, 일시적 연결 끊김) 웹 서비스는 떠야
+    # 합니다. 그래야 /api/health 로 원인을 볼 수 있습니다.
+    try:
+        Base.metadata.create_all(bind=engine)
+        _ensure_upload_url_columns()
+        print("✅ 데이터베이스 초기화 완료")
+    except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
+        problems.append(f"데이터베이스에 연결하지 못했습니다: {exc}")
+        print(f"❌ 데이터베이스 초기화 실패: {exc}", flush=True)
+
     print(f"💾 {_describe_database()}")
 
     # 재배포 후 데이터가 남는지 로그만 보고 판단할 수 있게 저장 위치를 찍습니다.
@@ -274,3 +303,5 @@ def init_db():
         print("☁️ 업로드 저장소: Cloudinary (재배포 후에도 파일 유지)")
     else:
         print("📁 업로드 저장소: 로컬 uploads/ (개발 전용 - 호스팅에서는 사라집니다)")
+
+    return problems

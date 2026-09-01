@@ -98,6 +98,10 @@ app.include_router(admin_router, prefix="/api")    # The Matrix 관리자
 
 
 # ============ 헬스 체크 ============
+# 기동 중 발견한 설정 문제. 비어 있으면 정상입니다.
+STARTUP_PROBLEMS: list = []
+
+
 def _running_commit() -> str:
     """
     현재 서빙 중인 코드의 커밋 해시를 반환합니다.
@@ -132,7 +136,9 @@ async def health_check() -> dict:
         상태 정보
     """
     return {
-        "status": "healthy",
+        # 설정 문제가 있으면 degraded. 서비스는 뜨지만 손봐야 합니다.
+        "status": "degraded" if STARTUP_PROBLEMS else "healthy",
+        "problems": list(STARTUP_PROBLEMS),
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         # 지금 실제로 서빙 중인 코드의 커밋. 배포가 조용히 실패하면 Render는
@@ -187,13 +193,30 @@ async def startup_event():
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} 시작 중...")
 
     # 데이터베이스 초기화
-    init_db()
+    # init_db()는 예외를 던지지 않고 문제 목록을 돌려줍니다. startup에서
+    # 예외가 나면 uvicorn이 종료 코드 3으로 죽고 Render가 배포를 실패시켜
+    # 이전 빌드를 계속 서빙하기 때문입니다.
+    STARTUP_PROBLEMS.clear()
+    STARTUP_PROBLEMS.extend(init_db())
 
-    # 단일 웹 프로세스(Render 등)에서도 대시보드가 워커를 보도록
-    # 같은 이벤트 루프에서 수집 루프를 띄웁니다.
-    from monitor_worker import start_embedded_worker
+    # 수집 워커는 부가 기능입니다. 여기서 실패해도 웹 서비스는 떠야 합니다.
+    try:
+        # 단일 웹 프로세스(Render 등)에서도 대시보드가 워커를 보도록
+        # 같은 이벤트 루프에서 수집 루프를 띄웁니다.
+        from monitor_worker import start_embedded_worker
 
-    await start_embedded_worker()
+        await start_embedded_worker()
+    except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
+        STARTUP_PROBLEMS.append(f"수집 워커를 시작하지 못했습니다: {exc}")
+        print(f"⚠️ 수집 워커 시작 실패(웹 서비스는 계속됩니다): {exc}", flush=True)
+
+    if STARTUP_PROBLEMS:
+        print("=" * 70, flush=True)
+        print("⚠️ 설정 문제가 있는 상태로 기동합니다 (degraded).", flush=True)
+        for problem in STARTUP_PROBLEMS:
+            print(f"   - {problem}", flush=True)
+        print("   자세한 내용은 /api/health 를 확인하세요.", flush=True)
+        print("=" * 70, flush=True)
 
     print("✅ 애플리케이션 준비 완료")
     print(f"📝 API 문서: http://{settings.SERVER_HOST}:{settings.SERVER_PORT}/docs")

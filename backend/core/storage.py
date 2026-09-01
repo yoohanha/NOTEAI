@@ -39,32 +39,64 @@ def _cloudinary_value(name: str) -> str:
     )
 
 
+CLOUDINARY_KEYS = (
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+)
+
+
+def missing_cloudinary_keys() -> list:
+    """
+    비어 있는 Cloudinary 환경 변수 이름을 반환합니다.
+
+    하나도 비어 있지 않은데 설정이 유효하지 않다고 판정된 경우(값은 있으나
+    쓸 수 없는 상태)에는 세 이름을 모두 돌려줍니다. 그래야 안내 문구가
+    "비어 있습니다()" 처럼 알맹이 없는 문장이 되지 않습니다.
+    """
+    missing = [name for name in CLOUDINARY_KEYS if not _cloudinary_value(name)]
+    return missing or list(CLOUDINARY_KEYS)
+
+
+def check_persistent_storage() -> Optional[str]:
+    """
+    호스팅에서 Cloudinary가 빠졌는지 확인하고, 문제가 있으면 설명을 반환합니다.
+
+    예외를 던지지 않는 이유:
+    startup 이벤트에서 예외가 나면 uvicorn이 STARTUP_FAILURE(종료 코드 3)로 죽고,
+    Render는 배포를 실패 처리한 뒤 **직전 성공 빌드를 계속 서빙**합니다. 그러면
+    설정 실수 하나 때문에 새 코드가 영영 반영되지 않고, 화면상으로는 아무것도
+    바뀌지 않은 것처럼 보입니다.
+
+    실제 데이터 유실은 여기서 막는 게 아니라 upload_bytes()에서 막습니다.
+    (호스팅에서 Cloudinary가 없으면 로컬 디스크에 쓰지 않고 업로드를 거부)
+    그래서 기동은 시키되 '문제 있음' 상태로 알리는 편이 안전합니다.
+
+    Returns:
+        문제 설명 문자열. 정상이면 None.
+    """
+    if not is_hosted_runtime() or is_cloudinary_configured():
+        return None
+
+    missing = missing_cloudinary_keys()
+    return (
+        f"Cloudinary 환경 변수가 비어 있습니다({', '.join(missing)}). "
+        "파일 업로드가 거부됩니다. Render 대시보드 → Environment 에 세 값을 넣으세요."
+    )
+
+
 def require_persistent_storage() -> None:
     """
-    호스팅에서 Cloudinary가 빠지면 업로드가 디스크에 쌓였다가 재배포 때 사라집니다.
+    check_persistent_storage()의 예외 버전.
 
-    주의: 여기서 예외가 나면 Render 배포가 실패하고 이전 빌드가 계속 서빙되므로,
-    새 코드가 반영되지 않은 것처럼 보입니다. 어떤 키가 비었는지 로그에 남깁니다.
+    기동 경로에서는 쓰지 마세요(배포가 죽습니다). 스크립트나 테스트처럼
+    설정이 확실히 갖춰져야 하는 곳에서만 사용합니다.
     """
-    if is_hosted_runtime() and not is_cloudinary_configured():
-        missing = [
-            name
-            for name in (
-                "CLOUDINARY_CLOUD_NAME",
-                "CLOUDINARY_API_KEY",
-                "CLOUDINARY_API_SECRET",
-            )
-            if not _cloudinary_value(name)
-        ]
-        print("=" * 70, flush=True)
-        print("❌ 배포 중단: Cloudinary 환경 변수가 비어 있습니다.", flush=True)
-        print(f"   비어 있는 값 → {', '.join(missing)}", flush=True)
-        print("   Render 대시보드 → Environment 에 세 값을 모두 넣어야 합니다.", flush=True)
-        print("   (이 배포는 실패하고, 이전 버전이 계속 서빙됩니다)", flush=True)
-        print("=" * 70, flush=True)
+    problem = check_persistent_storage()
+    if problem:
         raise RuntimeError(
             "호스팅 환경에서는 Cloudinary가 필요합니다. "
-            f"다음 값이 비어 있습니다: {', '.join(missing)}"
+            f"다음 값이 비어 있습니다: {', '.join(missing_cloudinary_keys())}"
         )
 
 
