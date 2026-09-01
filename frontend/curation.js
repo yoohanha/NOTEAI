@@ -462,7 +462,9 @@ async function handleSaveTrend(item, button) {
  * @param {HTMLButtonElement} button - 클릭된 삭제 버튼
  */
 async function handleDeleteNote(note, button) {
-  if (typeof canDeleteContent === 'function' && !canDeleteContent()) {
+  // 권한 판정을 못 하면 삭제하지 않습니다(fail-closed).
+  // script.js가 아직 로드되지 않았거나 세션 복원 전이면 관리자로 볼 수 없습니다.
+  if (typeof canDeleteContent !== 'function' || !canDeleteContent()) {
     return;
   }
   const title = note.title || '이 노트';

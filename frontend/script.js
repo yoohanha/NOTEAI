@@ -112,6 +112,7 @@ function saveSession(token) {
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   currentUserIsAdmin = false;
+  applyAdminVisibility();
 }
 
 /**
@@ -120,6 +121,20 @@ function clearSession() {
  */
 function applyUserRole(user) {
   currentUserIsAdmin = Boolean(user && user.is_admin);
+  applyAdminVisibility();
+}
+
+/**
+ * 관리자 전용 UI를 관리자에게만 렌더링합니다.
+ *
+ * 일반 유저에게는 '관리자모드' 버튼 자체가 보이지 않아야 합니다.
+ * (백엔드 /api/admin/*은 별도로 403을 반환하므로 이중 방어입니다.)
+ */
+function applyAdminVisibility() {
+  document.querySelectorAll('[data-admin-only]').forEach((el) => {
+    el.classList.toggle('hidden', !currentUserIsAdmin);
+    if ('disabled' in el) el.disabled = !currentUserIsAdmin;
+  });
 }
 
 /**

@@ -103,6 +103,8 @@ function showFolderView() {
   $('courseView').classList.add('hidden');
   $('folderView').classList.remove('hidden');
   $('addCourseBtn').classList.add('hidden');
+  // 강좌 폴더에 들어올 때마다 '강좌 삭제' 버튼의 관리자 여부를 다시 적용합니다.
+  applyDeleteVisibility();
 }
 
 function renderCourses() {

@@ -86,11 +86,16 @@ def upload_bytes(
     public_id = uuid.uuid4().hex
 
     if is_cloudinary_configured():
+        # raw(PDF·PPTX·DOCX 등)는 Cloudinary가 확장자를 추론하지 못합니다.
+        # public_id에 확장자를 붙여야 secure_url이 ".../abc123.pdf" 형태가 되고,
+        # 브라우저가 application/pdf로 받아 미리보기가 열립니다.
+        # image/video는 Cloudinary가 format을 붙여주므로 그대로 둡니다.
+        cloud_public_id = f"{public_id}{suffix}" if resource_type == "raw" else public_id
         return _upload_cloudinary(
             payload,
             folder=folder,
             resource_type=resource_type,
-            public_id=public_id,
+            public_id=cloud_public_id,
             filename=filename,
         )
 

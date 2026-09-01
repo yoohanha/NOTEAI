@@ -220,8 +220,9 @@
                   class="text-xs text-ink-muted hover:text-ink px-2 py-1.5 transition">
             로그아웃
           </button>
-          <button type="button" id="adminModeBtn"
-                  class="text-xs font-medium px-2 py-1.5 rounded-lg transition"
+          <!-- 관리자 계정으로 로그인했을 때만 보입니다 (script.js applyAdminVisibility) -->
+          <button type="button" id="adminModeBtn" data-admin-only
+                  class="hidden text-xs font-medium px-2 py-1.5 rounded-lg transition"
                   style="color:#c45c74">
             관리자모드
           </button>

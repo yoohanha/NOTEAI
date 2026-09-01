@@ -65,3 +65,53 @@ def test_health_reports_persistence(client):
     assert body["status"] == "healthy"
     assert body["persistence"]["database"] in ("sqlite", "postgresql")
     assert isinstance(body["persistence"]["cloudinary"], bool)
+
+
+def _capture_public_id(monkeypatch):
+    """Cloudinary uploader에 넘어간 public_id를 가로챕니다."""
+    captured = {}
+
+    def fake_upload(_fileobj, **kwargs):
+        captured.update(kwargs)
+        return {
+            "secure_url": "https://res.cloudinary.com/demo/raw/upload/x",
+            "public_id": kwargs.get("public_id", ""),
+            "resource_type": kwargs.get("resource_type", "raw"),
+        }
+
+    monkeypatch.setattr("core.storage.is_cloudinary_configured", lambda: True)
+    monkeypatch.setattr("core.storage._configure", lambda: None)
+    monkeypatch.setattr("cloudinary.uploader.upload", fake_upload)
+    return captured
+
+
+def test_raw_upload_keeps_extension_in_public_id(monkeypatch):
+    """
+    교안(PDF/PPTX 등)은 public_id에 확장자가 있어야 Cloudinary가
+    올바른 Content-Type으로 서빙하고 브라우저 미리보기가 열립니다.
+    """
+    captured = _capture_public_id(monkeypatch)
+
+    upload_bytes(
+        b"%PDF-1.4 body",
+        folder="noteai/lectures/1/2",
+        resource_type="raw",
+        filename="lecture-note.PDF",
+    )
+
+    assert captured["public_id"].endswith(".pdf"), captured["public_id"]
+    assert captured["resource_type"] == "raw"
+
+
+def test_image_upload_public_id_has_no_extension(monkeypatch):
+    """이미지/동영상은 Cloudinary가 format을 붙이므로 확장자를 넣지 않습니다."""
+    captured = _capture_public_id(monkeypatch)
+
+    upload_bytes(
+        b"png-bytes",
+        folder="noteai/media/1",
+        resource_type="image",
+        filename="shot.png",
+    )
+
+    assert not captured["public_id"].endswith(".png"), captured["public_id"]

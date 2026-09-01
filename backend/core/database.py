@@ -14,7 +14,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import NullPool, StaticPool
 
 from core.config import settings
-from core.storage import is_hosted_runtime, require_persistent_storage
+from core.storage import (
+    is_cloudinary_configured,
+    is_hosted_runtime,
+    require_persistent_storage,
+)
 
 
 def resolve_database_url(raw_url: str) -> str:
@@ -205,16 +209,38 @@ def _ensure_upload_url_columns():
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
 
     # 기존 Postgres 컬럼이 VARCHAR(512)이면 Cloudinary URL이 잘릴 수 있습니다.
-    if not _IS_SQLITE:
-        for table in ("media_assets", "lecture_materials"):
-            if table not in existing_tables:
-                continue
+    #
+    # 주의: 이 ALTER를 재배포마다 무조건 실행하면 테이블을 통째로 다시 쓰고,
+    # DDL 권한이 없는 DB에서는 예외가 나서 init_db() 전체가 실패합니다.
+    # (그러면 앱이 아예 뜨지 않아 "데이터가 사라진 것처럼" 보입니다.)
+    # 그래서 실제로 길이가 모자랄 때만 딱 한 번 넓히고, 실패해도 기동은 계속합니다.
+    if _IS_SQLITE:
+        return
+
+    inspector = inspect(engine)  # ADD COLUMN 이후 상태를 다시 읽습니다.
+    for table in ("media_assets", "lecture_materials"):
+        if table not in existing_tables:
+            continue
+
+        current_length = None
+        for col in inspector.get_columns(table):
+            if col["name"] == "public_url":
+                current_length = getattr(col["type"], "length", None)
+                break
+
+        # length가 None이면 TEXT처럼 제한이 없다는 뜻이므로 건드리지 않습니다.
+        if current_length is None or current_length >= 1024:
+            continue
+
+        try:
             with engine.begin() as conn:
                 conn.execute(
                     text(
                         f"ALTER TABLE {table} ALTER COLUMN public_url TYPE VARCHAR(1024)"
                     )
                 )
+        except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
+            print(f"⚠️ {table}.public_url 길이 확장을 건너뜁니다: {exc}")
 
 
 def init_db():
@@ -230,3 +256,9 @@ def init_db():
     _ensure_upload_url_columns()
     print("✅ 데이터베이스 초기화 완료")
     print(f"💾 {_describe_database()}")
+
+    # 재배포 후 데이터가 남는지 로그만 보고 판단할 수 있게 저장 위치를 찍습니다.
+    if is_cloudinary_configured():
+        print("☁️ 업로드 저장소: Cloudinary (재배포 후에도 파일 유지)")
+    else:
+        print("📁 업로드 저장소: 로컬 uploads/ (개발 전용 - 호스팅에서는 사라집니다)")
