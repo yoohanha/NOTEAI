@@ -266,6 +266,106 @@ def _ensure_upload_url_columns():
             print(f"⚠️ {table}.public_url 길이 확장을 건너뜁니다: {exc}")
 
 
+# 수집 저장 시 실제 컬럼 길이를 반복 조회하지 않도록 캐시합니다.
+_VARCHAR_LIMIT_CACHE: dict = {}
+
+
+def varchar_limit(table: str, column: str, fallback: int) -> int:
+    """
+    실제 DB 컬럼의 VARCHAR 길이를 읽습니다.
+
+    TEXT이거나 길이를 알 수 없으면 fallback을 쓰고,
+    기존 Postgres가 더 짧으면 그 길이에 맞춰 잘라야 합니다.
+    """
+    cache_key = (table, column, fallback)
+    cached = _VARCHAR_LIMIT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    limit = fallback
+    try:
+        inspector = inspect(engine)
+        if table not in set(inspector.get_table_names()):
+            _VARCHAR_LIMIT_CACHE[cache_key] = fallback
+            return fallback
+        for col in inspector.get_columns(table):
+            if col["name"] != column:
+                continue
+            length = getattr(col["type"], "length", None)
+            if length is None:
+                limit = fallback
+            else:
+                limit = min(int(length), fallback) if fallback > 0 else int(length)
+            break
+    except Exception:
+        limit = fallback
+
+    _VARCHAR_LIMIT_CACHE[cache_key] = limit
+    return limit
+
+
+def _ensure_trend_item_column_widths() -> None:
+    """
+    수집 피드가 VARCHAR를 넘기지 않도록 trend_items 긴 컬럼을 TEXT로 넓힙니다.
+
+    행을 지우거나 테이블을 다시 만들지 않습니다. SQLite는 VARCHAR 길이를
+    강제하지 않으므로 건너뜁니다. DDL 실패해도 기동은 계속합니다.
+    """
+    _VARCHAR_LIMIT_CACHE.clear()
+    if _IS_SQLITE:
+        return
+
+    inspector = inspect(engine)
+    if "trend_items" not in set(inspector.get_table_names()):
+        return
+
+    widen = (
+        "title",
+        "url",
+        "image_url",
+        "author",
+        "source_name",
+        "summary",
+    )
+    columns = {col["name"]: col for col in inspector.get_columns("trend_items")}
+    for name in widen:
+        col = columns.get(name)
+        if col is None:
+            continue
+        length = getattr(col["type"], "length", None)
+        if length is None:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(f"ALTER TABLE trend_items ALTER COLUMN {name} TYPE TEXT")
+                )
+            print(f"📐 trend_items.{name} 을 TEXT로 넓혔습니다")
+        except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
+            print(f"⚠️ trend_items.{name} 길이 확장을 건너뜁니다: {exc}")
+
+    for name, target in (("source_key", 80), ("category", 80)):
+        col = columns.get(name)
+        if col is None:
+            continue
+        length = getattr(col["type"], "length", None)
+        if length is None or length >= target:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE trend_items ALTER COLUMN {name} "
+                        f"TYPE VARCHAR({target})"
+                    )
+                )
+            print(f"📐 trend_items.{name} 을 VARCHAR({target})로 넓혔습니다")
+        except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
+            print(f"⚠️ trend_items.{name} 길이 확장을 건너뜁니다: {exc}")
+
+    _VARCHAR_LIMIT_CACHE.clear()
+
+
 def init_db() -> List[str]:
     """
     데이터베이스 초기화 (애플리케이션 시작 시 호출)
@@ -291,6 +391,7 @@ def init_db() -> List[str]:
     try:
         Base.metadata.create_all(bind=engine)
         _ensure_upload_url_columns()
+        _ensure_trend_item_column_widths()
         print("✅ 데이터베이스 초기화 완료")
     except Exception as exc:  # noqa: BLE001 - 기동을 막지 않습니다
         problems.append(f"데이터베이스에 연결하지 못했습니다: {exc}")

@@ -24,22 +24,24 @@ class TrendItem(Base):
     __tablename__ = "trend_items"
 
     # 기본 정보
+    # 피드 원문은 VARCHAR 한도를 쉽게 넘기므로 긴 필드는 TEXT로 둡니다.
+    # 기존 Postgres 테이블은 init_db에서 ALTER로 넓히고, 저장 시에도 자릅니다.
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False)
+    title = Column(Text, nullable=False)
     summary = Column(Text)
 
     # 원문 링크 (같은 기사를 중복 저장하지 않도록 unique)
-    url = Column(String(1000), nullable=False, unique=True, index=True)
+    url = Column(Text, nullable=False, unique=True, index=True)
 
     # URL의 SHA-256 해시 - 긴 URL도 인덱스 길이 제한 없이 조회 가능
     url_hash = Column(String(64), nullable=False, unique=True, index=True)
 
     # 출처
-    source_key = Column(String(50), nullable=False, index=True)
-    source_name = Column(String(150))
-    category = Column(String(50), index=True)
-    author = Column(String(100))
-    image_url = Column(String(1000))
+    source_key = Column(String(80), nullable=False, index=True)
+    source_name = Column(Text)
+    category = Column(String(80), index=True)
+    author = Column(Text)
+    image_url = Column(Text)
 
     # 분류 태그 (피드가 제공한 category 목록)
     tags = Column(JSON, default=[])

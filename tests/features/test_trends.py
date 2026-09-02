@@ -143,7 +143,7 @@ class TestCleanHtml:
 
     def test_truncates_long_text(self):
         result = clean_html("가" * 600, limit=100)
-        assert len(result) <= 101 and result.endswith("…")
+        assert len(result) <= 100 and result.endswith("…")
 
     def test_handles_none(self):
         assert clean_html(None) == ""
@@ -245,6 +245,36 @@ class TestRefresh:
         )
 
         assert result["saved"] == 1
+
+    def test_persist_clips_oversized_fields(self, db):
+        """피드 원문이 VARCHAR보다 길어도 수집 배치가 실패하지 않아야 합니다."""
+        long_url = "https://example.com/" + ("a" * 4000)
+        items = [
+            {
+                "title": "가" * 800,
+                "summary": "나" * 50,
+                "url": long_url,
+                "url_hash": url_hash(long_url),
+                "source_key": "hackernews",
+                "source_name": "매체명" * 80,
+                "category": "engineering",
+                "author": "작성자" * 80,
+                "image_url": "https://cdn.example.com/" + ("p" * 3000),
+                "tags": ["ai"],
+                "published_at": None,
+            }
+        ]
+
+        saved, duplicates, stored, errors = trend_service._persist(db, items)
+
+        assert saved == 1
+        assert duplicates == 0
+        assert errors == []
+        assert len(stored[0]["title"]) <= 2000
+        assert len(stored[0]["url"]) <= 2000
+        assert len(stored[0]["author"] or "") <= 500
+        assert len(stored[0]["image_url"] or "") <= 2000
+        assert len(stored[0]["source_name"] or "") <= 255
 
     @pytest.mark.asyncio
     async def test_limit_per_source(self, db, stub_fetch):

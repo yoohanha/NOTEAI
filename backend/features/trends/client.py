@@ -83,7 +83,12 @@ def clean_html(text: Optional[str], limit: int = 500) -> str:
     plain = re.sub(r"\s+", " ", plain).strip()
 
     if len(plain) > limit:
-        plain = plain[:limit].rstrip() + "…"
+        # 말줄임표를 붙여도 호출부가 기대한 limit을 넘기지 않게 합니다.
+        # (넘기면 Postgres VARCHAR에서 수집 배치 전체가 실패합니다.)
+        keep = max(0, limit - 1)
+        plain = plain[:keep].rstrip() + "…"
+        if len(plain) > limit:
+            plain = plain[:limit]
 
     return plain
 

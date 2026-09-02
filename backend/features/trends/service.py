@@ -10,15 +10,35 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import desc
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.database import varchar_limit
 from features.auth.models import User
 from features.notes.models import Note
 from features.trends.client import fetch_all
 from features.trends.models import TrendItem
 from features.trends.schemas import RefreshRequest
 from features.trends.sources import get_sources
+
+# 컬럼이 TEXT여도 한 항목이 비정상적으로 커지지 않게 상한을 둡니다.
+_TITLE_MAX = 2000
+_URL_MAX = 2000
+_IMAGE_URL_MAX = 2000
+_AUTHOR_MAX = 500
+_SOURCE_NAME_MAX = 255
+_SOURCE_KEY_MAX = 80
+_CATEGORY_MAX = 80
+_SUMMARY_MAX = 8000
+
+
+def clip_text(value: Optional[str], limit: int) -> str:
+    """None과 공백을 정리한 뒤 글자 수 상한으로 자릅니다."""
+    text = "" if value is None else str(value)
+    if limit <= 0:
+        return text
+    return text[:limit]
 
 
 def url_hash(url: str) -> str:
@@ -99,7 +119,10 @@ class TrendService:
                 "items": filtered,
             }
 
-        saved, duplicates, stored_items = TrendService._persist(db, filtered)
+        saved, duplicates, stored_items, persist_errors = TrendService._persist(
+            db, filtered
+        )
+        errors.extend(persist_errors)
 
         return {
             "fetched": len(raw_items),
@@ -172,10 +195,10 @@ class TrendService:
             items: 필터링된 항목 목록
 
         Returns:
-            (저장 건수, 중복 건수, 저장/조회된 항목 목록)
+            (저장 건수, 중복 건수, 저장/조회된 항목 목록, 항목별 오류)
         """
         if not items:
-            return 0, 0, []
+            return 0, 0, [], []
 
         hashes = [item["url_hash"] for item in items]
 
@@ -189,35 +212,61 @@ class TrendService:
 
         saved = 0
         duplicates = 0
+        persist_errors: List[str] = []
         new_records: List[TrendItem] = []
+
+        # 실제 DB 컬럼이 모델보다 짧을 수 있으므로, 조회한 길이와 상한 중 작은 쪽을 씁니다.
+        title_limit = varchar_limit("trend_items", "title", _TITLE_MAX)
+        url_limit = varchar_limit("trend_items", "url", _URL_MAX)
+        image_limit = varchar_limit("trend_items", "image_url", _IMAGE_URL_MAX)
+        author_limit = varchar_limit("trend_items", "author", _AUTHOR_MAX)
+        source_name_limit = varchar_limit(
+            "trend_items", "source_name", _SOURCE_NAME_MAX
+        )
+        source_key_limit = varchar_limit("trend_items", "source_key", _SOURCE_KEY_MAX)
+        category_limit = varchar_limit("trend_items", "category", _CATEGORY_MAX)
 
         for item in items:
             if item["url_hash"] in existing_hashes:
                 duplicates += 1
                 continue
 
+            image_url = clip_text(item.get("image_url"), image_limit) or None
             record = TrendItem(
-                title=item["title"][:255],
-                summary=item["summary"],
-                url=item["url"][:1000],
-                url_hash=item["url_hash"],
-                source_key=item["source_key"],
-                source_name=item["source_name"],
-                category=item["category"],
-                author=item["author"],
-                image_url=(item.get("image_url") or None),
-                tags=item["tags"],
-                published_at=item["published_at"],
+                title=clip_text(item.get("title"), title_limit) or "(제목 없음)",
+                summary=clip_text(item.get("summary"), _SUMMARY_MAX),
+                url=clip_text(item.get("url"), url_limit),
+                url_hash=clip_text(item.get("url_hash"), 64),
+                source_key=clip_text(item.get("source_key"), source_key_limit),
+                source_name=clip_text(item.get("source_name"), source_name_limit) or None,
+                category=clip_text(item.get("category"), category_limit) or None,
+                author=clip_text(item.get("author"), author_limit) or None,
+                image_url=image_url,
+                tags=item.get("tags") or [],
+                published_at=item.get("published_at"),
                 fetched_at=datetime.utcnow(),
                 is_saved=False,
             )
 
-            db.add(record)
-            new_records.append(record)
-            saved += 1
-
-            # 같은 배치에 중복이 또 들어오지 않도록 기록
-            existing_hashes.add(item["url_hash"])
+            # 한 항목의 길이/유니크 오류가 배치 전체를 롤백하지 않게 세이브포인트를 씁니다.
+            try:
+                with db.begin_nested():
+                    db.add(record)
+                    db.flush()
+                new_records.append(record)
+                saved += 1
+                existing_hashes.add(item["url_hash"])
+            except IntegrityError:
+                duplicates += 1
+                existing_hashes.add(item["url_hash"])
+            except DataError as exc:
+                persist_errors.append(
+                    f"{item.get('title') or '항목'}: 컬럼 길이 초과를 건너뜀 ({exc})"
+                )
+            except Exception as exc:  # noqa: BLE001 - 한 건 실패로 수집을 멈추지 않습니다
+                persist_errors.append(
+                    f"{item.get('title') or '항목'}: 저장 실패 ({exc})"
+                )
 
         try:
             db.commit()
@@ -229,7 +278,12 @@ class TrendService:
         for record in new_records:
             db.refresh(record)
 
-        return saved, duplicates, [TrendService._to_dict(r) for r in new_records]
+        return (
+            saved,
+            duplicates,
+            [TrendService._to_dict(r) for r in new_records],
+            persist_errors,
+        )
 
     @staticmethod
     def _to_dict(record: TrendItem) -> Dict[str, Any]:
